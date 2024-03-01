@@ -62,3 +62,56 @@ func (s *Storage) CreateToken(aT *accessToken.AccessToken) (string, error) {
 
 	return AccessTokenStorage.ID, nil
 }
+
+func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
+	const op = "storage.pgsql.oauth.access-token.ExistsToken"
+	s.log.Info("op", op)
+	var isExists bool
+	querySQL := `
+		SELECT (COUNT(*)::smallint)::int::bool as isExists FROM %s WHERE id = $1 AND user_id = $2 AND client_id = $3
+	`
+	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
+	querySQL = loop.FormatQuery(querySQL)
+	s.log.Info("query", querySQL)
+
+	err := s.db.QueryRow(
+		s.ctx,
+		querySQL,
+		aT.ID,
+		aT.UserId,
+		aT.ClientId,
+	).Scan(&isExists)
+
+	if err != nil {
+		s.log.Error("error query", err)
+		return false, err
+	}
+
+	return isExists, nil
+}
+
+func (s *Storage) UpdateToken(aT *accessToken.AccessToken) (bool, error) {
+	const op = "storage.pgsql.oauth.access-token.UpdateToken"
+	s.log.Info("op", op)
+
+	querySQL := `
+		UPDATE %s SET revoked = true WHERE id = $1 AND user_id = $2 AND client_id = $3
+	`
+	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
+	querySQL = loop.FormatQuery(querySQL)
+	s.log.Info("query", querySQL)
+	_, err := s.db.Exec(
+		s.ctx,
+		querySQL,
+		aT.ID,
+		aT.UserId,
+		aT.ClientId,
+	)
+
+	if err != nil {
+		s.log.Error("error query", err)
+		return false, err
+	}
+
+	return true, nil
+}

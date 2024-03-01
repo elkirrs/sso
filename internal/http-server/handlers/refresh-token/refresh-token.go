@@ -1,11 +1,10 @@
-package login
+package refresh_token
 
 import (
 	"app/internal/config"
 	accessTokenDomain "app/internal/domain/oauth/access-token"
 	"app/internal/domain/oauth/clients"
 	refreshTokenDomain "app/internal/domain/oauth/refresh-token"
-	"app/internal/domain/user"
 	resp "app/pkg/common/core/api/response"
 	"app/pkg/common/core/identity"
 	"app/pkg/common/core/token"
@@ -20,15 +19,16 @@ import (
 	"time"
 )
 
-type Auth interface {
-	Login(req *user.User) (user.User, error)
-}
 type AccessToken interface {
 	CreateToken(aT *accessTokenDomain.AccessToken) (string, error)
+	ExistsToken(aT *accessTokenDomain.AccessToken) (bool, error)
+	UpdateToken(aT *accessTokenDomain.AccessToken) (bool, error)
 }
 
 type RefreshToken interface {
 	CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (string, error)
+	ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
+	UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 }
 
 type Client interface {
@@ -36,34 +36,33 @@ type Client interface {
 }
 
 type Request struct {
-	Login    string `json:"login" validate:"required,ascii"`
-	Password string `json:"password" validate:"required,ascii"`
-	ClientId string `json:"client_id" validate:"required,ascii"`
+	RefreshToken string `json:"refresh_token" validate:"required,ascii"`
+	ClientID     string `json:"client_id" validate:"required,ascii"`
 }
 
 type Response struct {
-	AccessToken  string `json:"accessToken,"`
-	RefreshToken string `json:"refreshToken"`
-	ExpiredAt    int64  `json:"expiredAt"`
+	AccessToken  string `json:"access_token,omitempty"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	ExpiredAt    int64  `json:"expired_at,omitempty"`
+	Message      string `json:"message,omitempty"`
 }
 
 func New(
 	log *slog.Logger,
-	auth Auth,
 	accessToken AccessToken,
 	refreshToken RefreshToken,
 	client Client,
 	cfg config.Token,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		const op = "http-server.handlers.login.New"
 
-		var dR = map[string]string{}
+		const op = "http-server.handlers.refresh-token.New"
 		log := log.With(
 			slog.String("op", op),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
+		var dR = map[string]string{}
 		var req Request
 
 		err := render.DecodeJSON(r.Body, &req)
@@ -82,29 +81,65 @@ func New(
 			return
 		}
 
-		var usr = &user.User{
-			Email: req.Login,
-			Name:  req.Login,
-		}
-
-		userStorage, err := auth.Login(usr)
-
+		oldPayloadRefreshToken, err := token.ParseRefreshToken(req.RefreshToken)
 		if err != nil {
-			log.Info("failed login user")
-			dR["message"] = "failed login user"
+			log.Error("refresh token invalid")
+			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
 		}
 
-		err = crypt.VerifyPassword(userStorage.Password, req.Password)
-		if err != nil {
-			log.Info("incorrect login or password")
-			dR["login"] = "incorrect login or password"
+		if oldPayloadRefreshToken.ExpiresAt < time.Now().Unix() {
+			log.Error("refresh token expired")
+			dR["message"] = "refresh token expired"
 			resp.Error(w, r, dR)
 			return
 		}
 
-		clientStorage, err := client.GetClient(req.ClientId)
+		var aT = &accessTokenDomain.AccessToken{
+			ClientId: oldPayloadRefreshToken.ClientId,
+			UserId:   oldPayloadRefreshToken.UserId,
+			ID:       oldPayloadRefreshToken.TokenAccessId,
+		}
+
+		existsAT, err := accessToken.ExistsToken(aT)
+		if err != nil || !existsAT {
+			log.Error("not fount access token in database")
+			dR["message"] = "refresh token invalid"
+			resp.Error(w, r, dR)
+			return
+		}
+
+		var rT = &refreshTokenDomain.RefreshToken{
+			AccessTokenId: oldPayloadRefreshToken.TokenAccessId,
+			ID:            oldPayloadRefreshToken.TokenRefreshId,
+		}
+
+		existsRT, err := refreshToken.ExistsToken(rT)
+		if err != nil || !existsRT {
+			log.Error("not fount refresh token in database")
+			dR["message"] = "refresh token invalid"
+			resp.Error(w, r, dR)
+			return
+		}
+
+		updateAT, err := accessToken.UpdateToken(aT)
+		if err != nil || !updateAT {
+			log.Error("access token was not revoked")
+			dR["message"] = "refresh token invalid"
+			resp.Error(w, r, dR)
+			return
+		}
+
+		updateRT, err := refreshToken.UpdateToken(rT)
+		if err != nil || !updateRT {
+			log.Error("refresh token was not revoked")
+			dR["message"] = "refresh token invalid"
+			resp.Error(w, r, dR)
+			return
+		}
+
+		clientStorage, err := client.GetClient(oldPayloadRefreshToken.ClientId)
 		if err != nil {
 			log.Info("client storage")
 			dR["message"] = "client storage"
@@ -113,28 +148,20 @@ func New(
 		}
 
 		var accessTokenPayload = &accessTokenDomain.Payload{
-			UUID:     userStorage.UUID,
-			Email:    userStorage.Email,
+			UUID:     oldPayloadRefreshToken.UUID,
+			Email:    oldPayloadRefreshToken.Email,
 			ClientID: clientStorage.ID,
 			Scopes:   "[*]",
 		}
 
 		accessTokenString, err := token.GenerateAccessToken(accessTokenPayload, cfg.TTL, clientStorage.Secret)
 
-		if err != nil {
-			log.Info("failed generate access token")
-			log.Info("error", err)
-			dR["message"] = "failed create token"
-			resp.Error(w, r, dR)
-			return
-		}
-
 		dateTime := time.Now().Unix()
 		dateTimeExp := time.Now().Add(cfg.TTL).Unix()
 
 		var aToken = &accessTokenDomain.AccessToken{
 			ID:        crypt.GetMD5Hash(identity.NewGenerator().GenerateUUIDv4String()),
-			UserId:    userStorage.ID,
+			UserId:    oldPayloadRefreshToken.UserId,
 			ClientId:  clientStorage.ID,
 			Revoked:   false,
 			CreatedAt: dateTime,
@@ -172,12 +199,12 @@ func New(
 		log.Info("client refresh token id ", refreshTokenId)
 
 		var refreshTokenPayload = &refreshTokenDomain.Payload{
-			UUID:           userStorage.UUID,
-			Email:          userStorage.Email,
+			UUID:           oldPayloadRefreshToken.UUID,
+			Email:          oldPayloadRefreshToken.Email,
 			TokenAccessId:  accessTokenId,
 			TokenRefreshId: refreshTokenId,
 			ClientId:       clientStorage.ID,
-			UserId:         userStorage.ID,
+			UserId:         oldPayloadRefreshToken.UserId,
 			ExpiresAt:      dateTimeExpRefresh,
 			Scopes:         "[*]",
 		}

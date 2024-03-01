@@ -75,15 +75,15 @@ func New(
 			return
 		}
 
-		time := time.Now().Unix()
+		timeUnix := time.Now().Unix()
 
 		var usr = &user.CreateUser{
 			UUID:      identity.NewGenerator().GenerateUUIDv4String(),
 			Password:  password,
 			Email:     req.Email,
 			Name:      req.Name,
-			CreatedAt: time,
-			UpdatedAt: time,
+			CreatedAt: timeUnix,
+			UpdatedAt: timeUnix,
 		}
 
 		err = auth.Registration(usr)

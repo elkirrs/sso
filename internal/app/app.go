@@ -3,10 +3,11 @@ package app
 import (
 	"app/internal/config"
 	"app/internal/http-server/handlers/login"
+	refresh "app/internal/http-server/handlers/refresh-token"
 	"app/internal/http-server/handlers/register"
-	access_token "app/internal/storage/pgsql/oauth/access-token"
+	accessTokenStorage "app/internal/storage/pgsql/oauth/access-token"
 	"app/internal/storage/pgsql/oauth/client"
-	refresh_token "app/internal/storage/pgsql/oauth/refresh-token"
+	refreshTokenStorage "app/internal/storage/pgsql/oauth/refresh-token"
 	"app/internal/storage/pgsql/user"
 	"app/pkg/client/pgsql"
 	"context"
@@ -75,13 +76,13 @@ func (a *App) Run() error {
 		return err
 	}
 
-	storageAccessToken, err := access_token.New(ctx, pgClient, a.log)
+	storageAccessToken, err := accessTokenStorage.New(ctx, pgClient, a.log)
 	if err != nil {
 		a.log.Error("failed to init storage access token", err)
 		return err
 	}
 
-	storageRefreshToken, err := refresh_token.New(ctx, pgClient, a.log)
+	storageRefreshToken, err := refreshTokenStorage.New(ctx, pgClient, a.log)
 	if err != nil {
 		a.log.Error("failed to init storage refresh token", err)
 		return err
@@ -95,15 +96,29 @@ func (a *App) Run() error {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	r.Post("/oauth/registration", register.New(a.log, storage))
-	r.Post("/oauth/login", login.New(
-		a.log,
-		storage,
-		storageAccessToken,
-		storageRefreshToken,
-		storageClient,
-		a.cfg.Token,
-	),
+	r.Post("/oauth/registration",
+		register.New(a.log, storage),
+	)
+
+	r.Post("/oauth/login",
+		login.New(
+			a.log,
+			storage,
+			storageAccessToken,
+			storageRefreshToken,
+			storageClient,
+			a.cfg.Token,
+		),
+	)
+
+	r.Post("/oauth/refresh-token",
+		refresh.New(
+			a.log,
+			storageAccessToken,
+			storageRefreshToken,
+			storageClient,
+			a.cfg.Token,
+		),
 	)
 
 	a.log.Info("starting api server")
