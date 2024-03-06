@@ -3,30 +3,28 @@ package access_token
 import (
 	accessToken "app/internal/domain/oauth/access-token"
 	"app/migrations"
+	"app/pkg/common/logging"
 	"app/pkg/utils/loop"
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log/slog"
 )
 
 type Storage struct {
-	db  *pgxpool.Pool
-	log *slog.Logger
 	ctx context.Context
+	db  *pgxpool.Pool
 }
 
-func New(ctx context.Context, pgClient *pgxpool.Pool, log *slog.Logger) (*Storage, error) {
+func New(ctx context.Context, pgClient *pgxpool.Pool) (*Storage, error) {
 	return &Storage{
-		db:  pgClient,
-		log: log,
 		ctx: ctx,
+		db:  pgClient,
 	}, nil
 }
 
 func (s *Storage) CreateToken(aT *accessToken.AccessToken) (string, error) {
 	const op = "storage.pgsql.oauth.access-token.CreateToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 
 	querySQL := `
 			INSERT INTO %s (id, user_id, client_id, name, scopes, revoked, created_at, updated_at, expires_at)
@@ -35,7 +33,7 @@ func (s *Storage) CreateToken(aT *accessToken.AccessToken) (string, error) {
 			`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 
 	var AccessTokenStorage accessToken.AccessToken
 
@@ -56,7 +54,7 @@ func (s *Storage) CreateToken(aT *accessToken.AccessToken) (string, error) {
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return "", err
 	}
 
@@ -65,7 +63,7 @@ func (s *Storage) CreateToken(aT *accessToken.AccessToken) (string, error) {
 
 func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
 	const op = "storage.pgsql.oauth.access-token.ExistsToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 	var isExists bool
 	querySQL := `
 		SELECT (COUNT(*)::smallint)::int::bool as isExists
@@ -74,7 +72,7 @@ func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 
 	err := s.db.QueryRow(
 		s.ctx,
@@ -85,7 +83,7 @@ func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
 	).Scan(&isExists)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return false, err
 	}
 
@@ -94,7 +92,7 @@ func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
 
 func (s *Storage) UpdateToken(aT *accessToken.AccessToken) (bool, error) {
 	const op = "storage.pgsql.oauth.access-token.UpdateToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 
 	querySQL := `
 		UPDATE %s
@@ -103,7 +101,7 @@ func (s *Storage) UpdateToken(aT *accessToken.AccessToken) (bool, error) {
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 	_, err := s.db.Exec(
 		s.ctx,
 		querySQL,
@@ -113,7 +111,7 @@ func (s *Storage) UpdateToken(aT *accessToken.AccessToken) (bool, error) {
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return false, err
 	}
 

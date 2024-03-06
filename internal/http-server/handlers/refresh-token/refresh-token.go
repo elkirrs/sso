@@ -8,13 +8,14 @@ import (
 	resp "app/pkg/common/core/api/response"
 	"app/pkg/common/core/identity"
 	"app/pkg/common/core/token"
+	"app/pkg/common/logging"
 	"app/pkg/utils/crypt"
+	"context"
 	"errors"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
 	"io"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -48,7 +49,7 @@ type Response struct {
 }
 
 func New(
-	log *slog.Logger,
+	ctx context.Context,
 	accessToken AccessToken,
 	refreshToken RefreshToken,
 	client Client,
@@ -57,9 +58,9 @@ func New(
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		const op = "http-server.handlers.refresh-token.New"
-		log := log.With(
-			slog.String("op", op),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
+		logging.L(ctx).With(
+			logging.StringAttr("op", op),
+			logging.StringAttr("request_id", middleware.GetReqID(r.Context())),
 		)
 
 		var dR = map[string]string{}
@@ -67,7 +68,7 @@ func New(
 
 		err := render.DecodeJSON(r.Body, &req)
 		if errors.Is(err, io.EOF) {
-			log.Error("request body is empty")
+			logging.L(ctx).Error("request body is empty")
 			dR["message"] = "empty request"
 			resp.Error(w, r, dR)
 			return
@@ -75,7 +76,7 @@ func New(
 
 		if err := validator.New().Struct(req); err != nil {
 			validateErr := err.(validator.ValidationErrors)
-			log.Error("invalid request", err)
+			logging.L(ctx).Error("invalid request", err)
 			dR := resp.ValidationError(validateErr)
 			resp.Error(w, r, dR)
 			return
@@ -83,14 +84,14 @@ func New(
 
 		oldPayloadRefreshToken, err := token.ParseRefreshToken(req.RefreshToken)
 		if err != nil {
-			log.Error("refresh token invalid")
+			logging.L(ctx).Error("refresh token invalid")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
 		}
 
 		if oldPayloadRefreshToken.ExpiresAt < time.Now().Unix() {
-			log.Error("refresh token expired")
+			logging.L(ctx).Error("refresh token expired")
 			dR["message"] = "refresh token expired"
 			resp.Error(w, r, dR)
 			return
@@ -103,14 +104,14 @@ func New(
 
 		rTQ, err := refreshToken.GetToken(rT)
 		if err != nil {
-			log.Error("not fount refresh token in database")
+			logging.L(ctx).Error("not fount refresh token in database")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
 		}
 
 		if rTQ.Revoked {
-			log.Error("refresh token is revoked")
+			logging.L(ctx).Error("refresh token is revoked")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
@@ -124,7 +125,7 @@ func New(
 
 		existsAT, err := accessToken.ExistsToken(aT)
 		if err != nil || !existsAT {
-			log.Error("not fount access token in database")
+			logging.L(ctx).Error("not fount access token in database")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
@@ -132,7 +133,7 @@ func New(
 
 		updateAT, err := accessToken.UpdateToken(aT)
 		if err != nil || !updateAT {
-			log.Error("access token was not revoked")
+			logging.L(ctx).Error("access token was not revoked")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
@@ -140,7 +141,7 @@ func New(
 
 		updateRT, err := refreshToken.UpdateToken(rT)
 		if err != nil || !updateRT {
-			log.Error("refresh token was not revoked")
+			logging.L(ctx).Error("refresh token was not revoked")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return
@@ -148,7 +149,7 @@ func New(
 
 		clientStorage, err := client.GetClient(oldPayloadRefreshToken.ClientId)
 		if err != nil {
-			log.Info("client storage")
+			logging.L(ctx).Info("client storage")
 			dR["message"] = "client storage"
 			resp.Error(w, r, dR)
 			return
@@ -179,13 +180,13 @@ func New(
 		accessTokenId, err := accessToken.CreateToken(aToken)
 
 		if err != nil {
-			log.Info("failed create access token")
+			logging.L(ctx).Info("failed create access token")
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return
 		}
 
-		log.Info("client access token id ", accessTokenId)
+		logging.L(ctx).Info("generate access token")
 
 		dateTimeExpRefresh := time.Now().Add(cfg.Refresh).Unix()
 		var rToken = &refreshTokenDomain.RefreshToken{
@@ -197,13 +198,13 @@ func New(
 
 		refreshTokenId, err := refreshToken.CreateRefreshToken(rToken)
 		if err != nil {
-			log.Info("failed create refresh token")
+			logging.L(ctx).Info("failed create refresh token")
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return
 		}
 
-		log.Info("client refresh token id ", refreshTokenId)
+		logging.L(ctx).Info("generate refresh token")
 
 		var refreshTokenPayload = &refreshTokenDomain.Payload{
 			UUID:           oldPayloadRefreshToken.UUID,
@@ -219,8 +220,7 @@ func New(
 		refreshTokenString, err := token.GenerateRefreshToken(refreshTokenPayload)
 
 		if err != nil {
-			log.Info("failed generate refresh token")
-			log.Info("error", err)
+			logging.L(ctx).Error("failed generate refresh token", err)
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return

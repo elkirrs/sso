@@ -9,12 +9,13 @@ import (
 )
 
 type Config struct {
-	Host  string     `yaml:"host"`
-	Env   string     `yaml:"env" env-default:"local"`
-	GRPC  GRPCConfig `yaml:"grpc"`
-	DB    DB         `yaml:"db"`
-	HTTP  HTTPConfig `yaml:"http"`
-	Token Token      `yaml:"token"`
+	Host      string     `yaml:"host"`
+	Env       string     `yaml:"env" env-default:"local"`
+	GRPC      GRPCConfig `yaml:"grpc"`
+	DB        DB         `yaml:"db"`
+	HTTP      HTTPConfig `yaml:"http"`
+	Token     Token      `yaml:"token"`
+	AppConfig AppConfig  `yaml:"appConfig"`
 }
 
 type GRPCConfig struct {
@@ -66,6 +67,11 @@ type PGSQL struct {
 	Host     string `yaml:"host" env-required:"true"`
 	Attempts int    `yaml:"attempts" env-default:"5"`
 	SSLMode  string `yaml:"ssl_mode"  env-default:"disable"`
+}
+
+type AppConfig struct {
+	LogLevel string `yaml:"log_level" env-default:"trace"`
+	LogJSON  bool   `yaml:"log_json" env-default:"false"`
 }
 
 func MustLoad() *Config {

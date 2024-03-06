@@ -9,13 +9,14 @@ import (
 	resp "app/pkg/common/core/api/response"
 	"app/pkg/common/core/identity"
 	"app/pkg/common/core/token"
+	"app/pkg/common/logging"
 	"app/pkg/utils/crypt"
+	"context"
 	"errors"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
 	"io"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -48,7 +49,7 @@ type Response struct {
 }
 
 func New(
-	log *slog.Logger,
+	ctx context.Context,
 	auth Auth,
 	accessToken AccessToken,
 	refreshToken RefreshToken,
@@ -59,16 +60,16 @@ func New(
 		const op = "http-server.handlers.login.New"
 
 		var dR = map[string]string{}
-		log := log.With(
-			slog.String("op", op),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
+		logging.L(ctx).With(
+			logging.StringAttr("op", op),
+			logging.StringAttr("request_id", middleware.GetReqID(r.Context())),
 		)
 
 		var req Request
 
 		err := render.DecodeJSON(r.Body, &req)
 		if errors.Is(err, io.EOF) {
-			log.Error("request body is empty")
+			logging.L(ctx).Error("request body is empty")
 			dR["message"] = "empty request"
 			resp.Error(w, r, dR)
 			return
@@ -76,7 +77,7 @@ func New(
 
 		if err := validator.New().Struct(req); err != nil {
 			validateErr := err.(validator.ValidationErrors)
-			log.Error("invalid request", err)
+			logging.L(ctx).Error("invalid request", err)
 			dR := resp.ValidationError(validateErr)
 			resp.Error(w, r, dR)
 			return
@@ -90,7 +91,7 @@ func New(
 		userStorage, err := auth.Login(usr)
 
 		if err != nil {
-			log.Info("failed login user")
+			logging.L(ctx).Error("failed login user")
 			dR["message"] = "failed login user"
 			resp.Error(w, r, dR)
 			return
@@ -98,7 +99,7 @@ func New(
 
 		err = crypt.VerifyPassword(userStorage.Password, req.Password)
 		if err != nil {
-			log.Info("incorrect login or password")
+			logging.L(ctx).Error("incorrect login or password")
 			dR["login"] = "incorrect login or password"
 			resp.Error(w, r, dR)
 			return
@@ -106,7 +107,7 @@ func New(
 
 		clientStorage, err := client.GetClient(req.ClientId)
 		if err != nil {
-			log.Info("client storage")
+			logging.L(ctx).Error("client storage")
 			dR["message"] = "client storage"
 			resp.Error(w, r, dR)
 			return
@@ -122,8 +123,8 @@ func New(
 		accessTokenString, err := token.GenerateAccessToken(accessTokenPayload, cfg.TTL, clientStorage.Secret)
 
 		if err != nil {
-			log.Info("failed generate access token")
-			log.Info("error", err)
+			logging.L(ctx).Error("failed generate access token")
+			logging.L(ctx).Error("error", err)
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return
@@ -145,13 +146,13 @@ func New(
 		accessTokenId, err := accessToken.CreateToken(aToken)
 
 		if err != nil {
-			log.Info("failed create access token")
+			logging.L(ctx).Error("failed create access token")
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return
 		}
 
-		log.Info("client access token id ", accessTokenId)
+		logging.L(ctx).Info("client access token id ", accessTokenId)
 
 		dateTimeExpRefresh := time.Now().Add(cfg.Refresh).Unix()
 		var rToken = &refreshTokenDomain.RefreshToken{
@@ -163,7 +164,7 @@ func New(
 
 		_, err = refreshToken.CreateRefreshToken(rToken)
 		if err != nil {
-			log.Info("failed create refresh token")
+			logging.L(ctx).Error("failed create refresh token")
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return
@@ -183,8 +184,7 @@ func New(
 		refreshTokenString, err := token.GenerateRefreshToken(refreshTokenPayload)
 
 		if err != nil {
-			log.Info("failed generate refresh token")
-			log.Info("error", err)
+			logging.L(ctx).Error("failed generate refresh token", err)
 			dR["message"] = "failed create token"
 			resp.Error(w, r, dR)
 			return

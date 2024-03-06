@@ -3,6 +3,8 @@ package main
 import (
 	"app/internal/app"
 	"app/internal/config"
+	"app/pkg/common/logging"
+	"context"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -16,12 +18,19 @@ const (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	cfg := config.MustLoad()
 
-	log := setupLogger(cfg.Env)
-	log.Info("starting logger")
+	logger := logging.NewLogger(
+		logging.WithLevel(cfg.AppConfig.LogLevel),
+		logging.WithIsJSON(cfg.AppConfig.LogJSON),
+	)
+	logger.Info("starting logger")
 
-	application := app.New(log, cfg)
+	ctx = logging.ContextWithLogger(ctx, logger)
+	application := app.New(ctx, cfg)
 
 	// Graceful shutdown
 	done := make(chan os.Signal, 1)
@@ -31,11 +40,11 @@ func main() {
 
 	sign := <-done
 
-	log.Info("stopped application", slog.String("signal", sign.String()))
+	logger.Info("stopped application", slog.String("signal", sign.String()))
 
 	//application.GRPCServer.Stop()
 
-	log.Info("app stopped")
+	logger.Info("app stopped")
 
 }
 

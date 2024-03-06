@@ -3,30 +3,28 @@ package refresh_token
 import (
 	refreshTokenDomain "app/internal/domain/oauth/refresh-token"
 	"app/migrations"
+	"app/pkg/common/logging"
 	"app/pkg/utils/loop"
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log/slog"
 )
 
 type Storage struct {
-	db  *pgxpool.Pool
-	log *slog.Logger
 	ctx context.Context
+	db  *pgxpool.Pool
 }
 
-func New(ctx context.Context, pgClient *pgxpool.Pool, log *slog.Logger) (*Storage, error) {
+func New(ctx context.Context, pgClient *pgxpool.Pool) (*Storage, error) {
 	return &Storage{
-		db:  pgClient,
-		log: log,
 		ctx: ctx,
+		db:  pgClient,
 	}, nil
 }
 
 func (s *Storage) CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (string, error) {
 	const op = "storage.pgsql.oauth.refresh-token.CreateRefreshToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 
 	querySQL := `
 			INSERT INTO %s (id, access_token_id, revoked, expires_at)
@@ -34,7 +32,7 @@ func (s *Storage) CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (strin
 			`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 
 	_, err := s.db.Exec(
 		s.ctx,
@@ -46,7 +44,7 @@ func (s *Storage) CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (strin
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return "", err
 	}
 
@@ -55,7 +53,7 @@ func (s *Storage) CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (strin
 
 func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error) {
 	const op = "storage.pgsql.oauth.refresh-token.ExistsToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 	var isExists bool
 	querySQL := `
 		SELECT (COUNT(*)::smallint)::int::bool as isExists
@@ -64,7 +62,7 @@ func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 
 	err := s.db.QueryRow(
 		s.ctx,
@@ -74,7 +72,7 @@ func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	).Scan(&isExists)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return false, err
 	}
 
@@ -83,7 +81,7 @@ func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 
 func (s *Storage) GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDomain.RefreshToken, error) {
 	const op = "storage.pgsql.oauth.refresh-token.ExistsToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 	var rTQ = refreshTokenDomain.RefreshToken{}
 
 	querySQL := `
@@ -94,7 +92,7 @@ func (s *Storage) GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDom
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 
 	err := s.db.QueryRow(
 		s.ctx,
@@ -109,7 +107,7 @@ func (s *Storage) GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDom
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return refreshTokenDomain.RefreshToken{}, err
 	}
 
@@ -118,7 +116,7 @@ func (s *Storage) GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDom
 
 func (s *Storage) UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error) {
 	const op = "storage.pgsql.oauth.refresh-token.UpdateToken"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 
 	querySQL := `
 		UPDATE %s
@@ -127,7 +125,7 @@ func (s *Storage) UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("query", querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
 	_, err := s.db.Exec(
 		s.ctx,
 		querySQL,
@@ -136,7 +134,7 @@ func (s *Storage) UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return false, err
 	}
 

@@ -5,13 +5,14 @@ import (
 	"app/internal/storage"
 	resp "app/pkg/common/core/api/response"
 	"app/pkg/common/core/identity"
+	"app/pkg/common/logging"
 	"app/pkg/utils/crypt"
+	"context"
 	"errors"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
 	"io"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -31,28 +32,28 @@ type Response struct {
 }
 
 func New(
-	log *slog.Logger,
+	ctx context.Context,
 	auth Auth,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "http-server.handlers.register.New"
 
-		log := log.With(
-			slog.String("op", op),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
+		logging.L(ctx).With(
+			logging.StringAttr("op", op),
+			logging.StringAttr("request_id", middleware.GetReqID(r.Context())),
 		)
 		var req Request
 
 		err := render.DecodeJSON(r.Body, &req)
 		if errors.Is(err, io.EOF) {
-			log.Error("request body is empty")
+			logging.L(ctx).Error("request body is empty")
 			var dR = &Response{Message: "empty request"}
 			resp.Error(w, r, dR)
 			return
 		}
 
 		if err != nil {
-			log.Error("failed to decode request body", err)
+			logging.L(ctx).Error("failed to decode request body", err)
 			var dR = &Response{Message: "failed to decode request"}
 			resp.Error(w, r, dR)
 			return
@@ -60,7 +61,7 @@ func New(
 
 		if err := validator.New().Struct(req); err != nil {
 			validateErr := err.(validator.ValidationErrors)
-			log.Error("invalid request", err)
+			logging.L(ctx).Error("invalid request", err)
 			dR := resp.ValidationError(validateErr)
 			resp.Error(w, r, dR)
 
@@ -69,7 +70,7 @@ func New(
 
 		password, err := crypt.GeneratePasswordHash(req.Password)
 		if err != nil {
-			log.Error("invalid generate hash password", err)
+			logging.L(ctx).Error("invalid generate hash password", err)
 			var dR = &Response{Message: "failed create user"}
 			resp.Error(w, r, dR)
 			return
@@ -89,7 +90,7 @@ func New(
 		err = auth.Registration(usr)
 		if err != nil {
 			if storage.ErrorCode(err) == storage.ErrCodeExists {
-				log.Info("user already exists")
+				logging.L(ctx).Info("user already exists")
 				var dR = &Response{Message: "user already exists"}
 				resp.Error(w, r, dR)
 				return

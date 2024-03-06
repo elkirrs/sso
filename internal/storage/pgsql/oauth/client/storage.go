@@ -3,30 +3,28 @@ package client
 import (
 	"app/internal/domain/oauth/clients"
 	"app/migrations"
+	"app/pkg/common/logging"
 	"app/pkg/utils/loop"
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"log/slog"
 )
 
 type Storage struct {
-	db  *pgxpool.Pool
-	log *slog.Logger
 	ctx context.Context
+	db  *pgxpool.Pool
 }
 
-func New(ctx context.Context, pgClient *pgxpool.Pool, log *slog.Logger) (*Storage, error) {
+func New(ctx context.Context, pgClient *pgxpool.Pool) (*Storage, error) {
 	return &Storage{
-		db:  pgClient,
-		log: log,
 		ctx: ctx,
+		db:  pgClient,
 	}, nil
 }
 
 func (s *Storage) GetClient(ID string) (clients.Client, error) {
 	const op = "storage.pgsql.oauth.client.GetClient"
-	s.log.Info("op", op)
+	logging.L(s.ctx).Info("op", op)
 
 	querySQL := `
 		SELECT id, user_id, name, secret, provider, redirect, personal_access_client, password_client, revoked
@@ -35,7 +33,7 @@ func (s *Storage) GetClient(ID string) (clients.Client, error) {
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthClient)
 	querySQL = loop.FormatQuery(querySQL)
-	s.log.Info("prepare query", querySQL)
+	logging.L(s.ctx).Info("prepare query", querySQL)
 
 	var client clients.Client
 
@@ -54,9 +52,9 @@ func (s *Storage) GetClient(ID string) (clients.Client, error) {
 		&client.PasswordClient,
 		&client.Revoked,
 	)
-	s.log.Info("client data", client)
+	logging.L(s.ctx).Info("client data", client)
 	if err != nil {
-		s.log.Error("error query db", err)
+		logging.L(s.ctx).Error("error query db", err)
 		return client, err
 	}
 

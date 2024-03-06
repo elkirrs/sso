@@ -3,6 +3,7 @@ package user
 import (
 	"app/internal/domain/user"
 	"app/migrations"
+	"app/pkg/common/logging"
 	"app/pkg/utils/loop"
 	"context"
 	"fmt"
@@ -11,16 +12,14 @@ import (
 )
 
 type Storage struct {
-	db  *pgxpool.Pool
-	log *slog.Logger
 	ctx context.Context
+	db  *pgxpool.Pool
 }
 
-func New(pgClient *pgxpool.Pool, log *slog.Logger, ctx context.Context) (*Storage, error) {
+func New(ctx context.Context, pgClient *pgxpool.Pool) (*Storage, error) {
 	return &Storage{
-		db:  pgClient,
-		log: log,
 		ctx: ctx,
+		db:  pgClient,
 	}, nil
 }
 
@@ -30,9 +29,9 @@ func (s *Storage) Registration(req *user.CreateUser) (error error) {
 	querySQL := `INSERT INTO users (uuid, name, email, password, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
 	querySQL = loop.FormatQuery(querySQL)
 
-	s.log.With(
-		slog.String("op", op),
-		slog.String("sql query", querySQL),
+	logging.L(s.ctx).With(
+		logging.StringAttr("op", op),
+		logging.StringAttr("sql query", querySQL),
 	).Info("prepared query")
 
 	_, err := s.db.Exec(
@@ -47,7 +46,7 @@ func (s *Storage) Registration(req *user.CreateUser) (error error) {
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return err
 	}
 
@@ -61,7 +60,7 @@ func (s *Storage) Login(req *user.User) (user.User, error) {
 	querySQL = fmt.Sprintf(querySQL, migrations.TableUsers)
 	querySQL = loop.FormatQuery(querySQL)
 
-	s.log.With(
+	logging.L(s.ctx).With(
 		slog.String("op", op),
 		slog.String("sql query", querySQL),
 	).Info("prepared query")
@@ -82,7 +81,7 @@ func (s *Storage) Login(req *user.User) (user.User, error) {
 	)
 
 	if err != nil {
-		s.log.Error("error query", err)
+		logging.L(s.ctx).Error("error query", err)
 		return usrStorage, err
 	}
 

@@ -10,31 +10,31 @@ import (
 	refreshTokenStorage "app/internal/storage/pgsql/oauth/refresh-token"
 	"app/internal/storage/pgsql/user"
 	"app/pkg/client/pgsql"
+	"app/pkg/common/logging"
 	"context"
 	"errors"
 	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/rs/cors"
-	"log/slog"
 	"net"
 	"net/http"
 )
 
 type App struct {
-	log        *slog.Logger
+	ctx        context.Context
 	router     *chi.Mux
 	httpServer *http.Server
 	cfg        *config.Config
 }
 
 func New(
-	log *slog.Logger,
+	ctx context.Context,
 	cfg *config.Config,
 ) *App {
 	return &App{
+		ctx: ctx,
 		cfg: cfg,
-		log: log,
 	}
 }
 
@@ -46,49 +46,48 @@ func (a *App) MustRun() {
 
 func (a *App) Run() error {
 	const op = "app.Run"
+	ctx := a.ctx
+	logging.L(ctx).Info("op", op)
 
-	ctx := context.Background()
-
-	a.log.With(
-		slog.String("op", op),
-		slog.String("host", a.cfg.Host),
-		slog.Int("port", a.cfg.HTTP.Port),
+	logging.WithAttrs(ctx,
+		logging.StringAttr("host", a.cfg.Host),
+		logging.IntAttr("port", a.cfg.HTTP.Port),
 	)
 
-	pgClient, err := pgsql.New(ctx, a.cfg.DB, a.log)
+	pgClient, err := pgsql.New(ctx, a.cfg.DB)
 
 	if err != nil {
-		a.log.Error("failed to connect to db", err)
+		logging.L(ctx).Error("failed to connect to db", err)
 		return err
 	}
 
-	a.log.Info("DB connected")
+	logging.L(ctx).Info("DB connected")
 
-	storage, err := user.New(pgClient, a.log, ctx)
+	storage, err := user.New(ctx, pgClient)
 	if err != nil {
-		a.log.Error("failed to init storage user", err)
+		logging.L(ctx).Error("failed to init storage user", err)
 		return err
 	}
 
-	storageClient, err := client.New(ctx, pgClient, a.log)
+	storageClient, err := client.New(ctx, pgClient)
 	if err != nil {
-		a.log.Error("failed to init storage access token", err)
+		logging.L(ctx).Error("failed to init storage access token", err)
 		return err
 	}
 
-	storageAccessToken, err := accessTokenStorage.New(ctx, pgClient, a.log)
+	storageAccessToken, err := accessTokenStorage.New(ctx, pgClient)
 	if err != nil {
-		a.log.Error("failed to init storage access token", err)
+		logging.L(ctx).Error("failed to init storage access token", err)
 		return err
 	}
 
-	storageRefreshToken, err := refreshTokenStorage.New(ctx, pgClient, a.log)
+	storageRefreshToken, err := refreshTokenStorage.New(ctx, pgClient)
 	if err != nil {
-		a.log.Error("failed to init storage refresh token", err)
+		logging.L(ctx).Error("failed to init storage refresh token", err)
 		return err
 	}
 
-	a.log.Info("router initializing")
+	logging.L(ctx).Info("router initializing")
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -97,12 +96,12 @@ func (a *App) Run() error {
 	r.Use(middleware.Recoverer)
 
 	r.Post("/oauth/registration",
-		register.New(a.log, storage),
+		register.New(ctx, storage),
 	)
 
 	r.Post("/oauth/login",
 		login.New(
-			a.log,
+			ctx,
 			storage,
 			storageAccessToken,
 			storageRefreshToken,
@@ -113,7 +112,7 @@ func (a *App) Run() error {
 
 	r.Post("/oauth/refresh-token",
 		refresh.New(
-			a.log,
+			ctx,
 			storageAccessToken,
 			storageRefreshToken,
 			storageClient,
@@ -121,7 +120,7 @@ func (a *App) Run() error {
 		),
 	)
 
-	a.log.Info("starting api server")
+	logging.L(ctx).Info("starting api server")
 
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", a.cfg.HTTP.Port))
 	if err != nil {
@@ -150,7 +149,7 @@ func (a *App) Run() error {
 	if err := a.httpServer.Serve(l); err != nil {
 		switch {
 		case errors.Is(err, http.ErrServerClosed):
-			a.log.Warn("server shutdown")
+			logging.L(ctx).Warn("server shutdown")
 			return fmt.Errorf("%s: %w", op, err)
 		default:
 			return fmt.Errorf("%s: %w", op, err)
@@ -158,7 +157,7 @@ func (a *App) Run() error {
 	}
 
 	if err := a.httpServer.Shutdown(ctx); err != nil {
-		a.log.Error("failed to stop server", err)
+		logging.L(ctx).Error("failed to stop server", err)
 		return err
 	}
 
