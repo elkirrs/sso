@@ -27,7 +27,7 @@ type AccessToken interface {
 
 type RefreshToken interface {
 	CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (string, error)
-	ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
+	GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDomain.RefreshToken, error)
 	UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 }
 
@@ -96,6 +96,26 @@ func New(
 			return
 		}
 
+		var rT = &refreshTokenDomain.RefreshToken{
+			AccessTokenId: oldPayloadRefreshToken.TokenAccessId,
+			ID:            oldPayloadRefreshToken.TokenRefreshId,
+		}
+
+		rTQ, err := refreshToken.GetToken(rT)
+		if err != nil {
+			log.Error("not fount refresh token in database")
+			dR["message"] = "refresh token invalid"
+			resp.Error(w, r, dR)
+			return
+		}
+
+		if rTQ.Revoked {
+			log.Error("refresh token is revoked")
+			dR["message"] = "refresh token invalid"
+			resp.Error(w, r, dR)
+			return
+		}
+
 		var aT = &accessTokenDomain.AccessToken{
 			ClientId: oldPayloadRefreshToken.ClientId,
 			UserId:   oldPayloadRefreshToken.UserId,
@@ -105,19 +125,6 @@ func New(
 		existsAT, err := accessToken.ExistsToken(aT)
 		if err != nil || !existsAT {
 			log.Error("not fount access token in database")
-			dR["message"] = "refresh token invalid"
-			resp.Error(w, r, dR)
-			return
-		}
-
-		var rT = &refreshTokenDomain.RefreshToken{
-			AccessTokenId: oldPayloadRefreshToken.TokenAccessId,
-			ID:            oldPayloadRefreshToken.TokenRefreshId,
-		}
-
-		existsRT, err := refreshToken.ExistsToken(rT)
-		if err != nil || !existsRT {
-			log.Error("not fount refresh token in database")
 			dR["message"] = "refresh token invalid"
 			resp.Error(w, r, dR)
 			return

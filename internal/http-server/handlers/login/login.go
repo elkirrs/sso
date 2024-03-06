@@ -42,9 +42,9 @@ type Request struct {
 }
 
 type Response struct {
-	AccessToken  string `json:"accessToken,"`
-	RefreshToken string `json:"refreshToken"`
-	ExpiredAt    int64  `json:"expiredAt"`
+	AccessToken  string `json:"access_token,"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiredAt    int64  `json:"expired_at"`
 }
 
 func New(
@@ -161,7 +161,7 @@ func New(
 			ExpiresAt:     dateTimeExpRefresh,
 		}
 
-		refreshTokenId, err := refreshToken.CreateRefreshToken(rToken)
+		_, err = refreshToken.CreateRefreshToken(rToken)
 		if err != nil {
 			log.Info("failed create refresh token")
 			dR["message"] = "failed create token"
@@ -169,13 +169,11 @@ func New(
 			return
 		}
 
-		log.Info("client refresh token id ", refreshTokenId)
-
 		var refreshTokenPayload = &refreshTokenDomain.Payload{
 			UUID:           userStorage.UUID,
 			Email:          userStorage.Email,
 			TokenAccessId:  accessTokenId,
-			TokenRefreshId: refreshTokenId,
+			TokenRefreshId: rToken.ID,
 			ClientId:       clientStorage.ID,
 			UserId:         userStorage.ID,
 			ExpiresAt:      dateTimeExpRefresh,

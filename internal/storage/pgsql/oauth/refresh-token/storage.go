@@ -31,23 +31,18 @@ func (s *Storage) CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (strin
 	querySQL := `
 			INSERT INTO %s (id, access_token_id, revoked, expires_at)
 			VALUES ($1, $2, $3, $4)
-			RETURNING ID
 			`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)
 	s.log.Info("query", querySQL)
 
-	var refreshTokenStorage refreshTokenDomain.RefreshToken
-
-	err := s.db.QueryRow(
+	_, err := s.db.Exec(
 		s.ctx,
 		querySQL,
 		rT.ID,
 		rT.AccessTokenId,
 		rT.Revoked,
 		rT.ExpiresAt,
-	).Scan(
-		&refreshTokenStorage.ID,
 	)
 
 	if err != nil {
@@ -55,7 +50,7 @@ func (s *Storage) CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (strin
 		return "", err
 	}
 
-	return refreshTokenStorage.ID, nil
+	return rT.ID, nil
 }
 
 func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error) {
@@ -63,7 +58,9 @@ func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	s.log.Info("op", op)
 	var isExists bool
 	querySQL := `
-		SELECT (COUNT(*)::smallint)::int::bool as isExists FROM %s WHERE id = $1 AND access_token_id = $2
+		SELECT (COUNT(*)::smallint)::int::bool as isExists
+		FROM %s
+		WHERE id = $1 AND access_token_id = $2
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)
@@ -84,12 +81,49 @@ func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	return isExists, nil
 }
 
+func (s *Storage) GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDomain.RefreshToken, error) {
+	const op = "storage.pgsql.oauth.refresh-token.ExistsToken"
+	s.log.Info("op", op)
+	var rTQ = refreshTokenDomain.RefreshToken{}
+
+	querySQL := `
+		SELECT id, access_token_id, revoked, expires_at
+		FROM %s
+		WHERE id = $1 AND access_token_id = $2
+		ORDER BY expires_at DESC
+	`
+	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
+	querySQL = loop.FormatQuery(querySQL)
+	s.log.Info("query", querySQL)
+
+	err := s.db.QueryRow(
+		s.ctx,
+		querySQL,
+		rT.ID,
+		rT.AccessTokenId,
+	).Scan(
+		&rTQ.ID,
+		&rTQ.AccessTokenId,
+		&rTQ.Revoked,
+		&rTQ.ExpiresAt,
+	)
+
+	if err != nil {
+		s.log.Error("error query", err)
+		return refreshTokenDomain.RefreshToken{}, err
+	}
+
+	return rTQ, nil
+}
+
 func (s *Storage) UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error) {
 	const op = "storage.pgsql.oauth.refresh-token.UpdateToken"
 	s.log.Info("op", op)
 
 	querySQL := `
-		UPDATE %s SET revoked = true WHERE id = $1 AND access_token_id = $2
+		UPDATE %s
+		SET revoked = true
+		WHERE id = $1 AND access_token_id = $2
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthRefreshToken)
 	querySQL = loop.FormatQuery(querySQL)

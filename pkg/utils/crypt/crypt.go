@@ -39,7 +39,7 @@ func GetSHA512(key, secret string) string {
 
 func EncryptWithPublicKey(data []byte, pK *rsa.PublicKey) (string, error) {
 	hash := sha512.New()
-	var chunkSize = pK.N.BitLen()/8 - 2*len(data) - 2
+	var chunkSize = pK.N.BitLen()/4 - 2*len(data) - 2
 
 	var result []byte
 	chunks := chunkBy[byte](data, chunkSize)
@@ -53,6 +53,7 @@ func EncryptWithPublicKey(data []byte, pK *rsa.PublicKey) (string, error) {
 	}
 
 	key := base64.StdEncoding.EncodeToString(result)
+
 	replace := map[string]string{
 		"+": "-",
 		"/": "_",
@@ -84,7 +85,7 @@ func DecryptWithPrivateKey(key string, pK *rsa.PrivateKey) ([]byte, error) {
 	decKey := []byte("")
 	hash := sha512.New()
 
-	for _, chunk := range chunkBy[byte](keyByte, pK.N.BitLen()/8) {
+	for _, chunk := range chunkBy[byte](keyByte, pK.N.BitLen()/4) {
 		plaintext, err := rsa.DecryptOAEP(hash, rand.Reader, pK, chunk, nil)
 		if err != nil {
 			return []byte{}, err

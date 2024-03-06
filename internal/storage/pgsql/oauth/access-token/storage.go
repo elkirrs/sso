@@ -68,7 +68,9 @@ func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
 	s.log.Info("op", op)
 	var isExists bool
 	querySQL := `
-		SELECT (COUNT(*)::smallint)::int::bool as isExists FROM %s WHERE id = $1 AND user_id = $2 AND client_id = $3
+		SELECT (COUNT(*)::smallint)::int::bool as isExists
+		FROM %s
+		WHERE id = $1 AND user_id = $2 AND client_id = $3
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
 	querySQL = loop.FormatQuery(querySQL)
@@ -95,7 +97,9 @@ func (s *Storage) UpdateToken(aT *accessToken.AccessToken) (bool, error) {
 	s.log.Info("op", op)
 
 	querySQL := `
-		UPDATE %s SET revoked = true WHERE id = $1 AND user_id = $2 AND client_id = $3
+		UPDATE %s
+		SET revoked = true
+		WHERE id = $1 AND user_id = $2 AND client_id = $3
 	`
 	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthAccessToken)
 	querySQL = loop.FormatQuery(querySQL)
