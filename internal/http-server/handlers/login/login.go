@@ -2,8 +2,8 @@ package login
 
 import (
 	"app/internal/config"
+	"app/internal/domain/client"
 	accessTokenDomain "app/internal/domain/oauth/access-token"
-	"app/internal/domain/oauth/clients"
 	refreshTokenDomain "app/internal/domain/oauth/refresh-token"
 	"app/internal/domain/user"
 	resp "app/pkg/common/core/api/response"
@@ -33,7 +33,7 @@ type RefreshToken interface {
 }
 
 type Client interface {
-	GetClient(ID string) (clients.Client, error)
+	GetClient(ID string) (client.Client, error)
 }
 
 type Request struct {

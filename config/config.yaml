@@ -54,4 +54,4 @@ token:
   secret_refresh: "Y2Vzc19pZCI6Ijk2ZDg4MDM4MjMyQ1MWUxZjkzMDZiMTgwZmFhNzc4YmFmMT"
 appConfig:
   log_level: "trace"
-  log_json: true
+  log_json: false

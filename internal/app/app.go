@@ -2,11 +2,12 @@ package app
 
 import (
 	"app/internal/config"
-	"app/internal/http-server/handlers/login"
-	refresh "app/internal/http-server/handlers/refresh-token"
-	"app/internal/http-server/handlers/register"
+	clientHTTP "app/internal/http-server/handlers/client"
+	loginHTTP "app/internal/http-server/handlers/login"
+	refreshHTTP "app/internal/http-server/handlers/refresh-token"
+	registerHTTP "app/internal/http-server/handlers/register"
+	clientStorage "app/internal/storage/pgsql/client"
 	accessTokenStorage "app/internal/storage/pgsql/oauth/access-token"
-	"app/internal/storage/pgsql/oauth/client"
 	refreshTokenStorage "app/internal/storage/pgsql/oauth/refresh-token"
 	"app/internal/storage/pgsql/user"
 	"app/pkg/client/pgsql"
@@ -69,7 +70,7 @@ func (a *App) Run() error {
 		return err
 	}
 
-	storageClient, err := client.New(ctx, pgClient)
+	storageClient, err := clientStorage.New(ctx, pgClient)
 	if err != nil {
 		logging.L(ctx).Error("failed to init storage access token", err)
 		return err
@@ -96,11 +97,11 @@ func (a *App) Run() error {
 	r.Use(middleware.Recoverer)
 
 	r.Post("/oauth/registration",
-		register.New(ctx, storage),
+		registerHTTP.New(ctx, storage),
 	)
 
 	r.Post("/oauth/login",
-		login.New(
+		loginHTTP.New(
 			ctx,
 			storage,
 			storageAccessToken,
@@ -111,7 +112,7 @@ func (a *App) Run() error {
 	)
 
 	r.Post("/oauth/refresh-token",
-		refresh.New(
+		refreshHTTP.New(
 			ctx,
 			storageAccessToken,
 			storageRefreshToken,
@@ -119,6 +120,9 @@ func (a *App) Run() error {
 			a.cfg.Token,
 		),
 	)
+
+	var clnt = clientHTTP.New(ctx, storageClient)
+	r.Get("/oauth/get-client/{client:[a-z]{1,20}}", clnt.GetClient())
 
 	logging.L(ctx).Info("starting api server")
 
