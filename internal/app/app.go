@@ -2,21 +2,13 @@ package app
 
 import (
 	"app/internal/config"
-	clientHTTP "app/internal/http-server/handlers/client"
-	loginHTTP "app/internal/http-server/handlers/login"
-	refreshHTTP "app/internal/http-server/handlers/refresh-token"
-	registerHTTP "app/internal/http-server/handlers/register"
-	clientStorage "app/internal/storage/pgsql/client"
-	accessTokenStorage "app/internal/storage/pgsql/oauth/access-token"
-	refreshTokenStorage "app/internal/storage/pgsql/oauth/refresh-token"
-	"app/internal/storage/pgsql/user"
+	"app/internal/http-server/router"
 	"app/pkg/client/pgsql"
 	"app/pkg/common/logging"
 	"context"
 	"errors"
 	"fmt"
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"github.com/rs/cors"
 	"net"
 	"net/http"
@@ -64,65 +56,12 @@ func (a *App) Run() error {
 
 	logging.L(ctx).Info("DB connected")
 
-	storage, err := user.New(ctx, pgClient)
+	r, err := router.GetRouters(ctx, pgClient, a.cfg)
+
 	if err != nil {
-		logging.L(ctx).Error("failed to init storage user", err)
+		logging.L(ctx).Error("failed to create routers", err)
 		return err
 	}
-
-	storageClient, err := clientStorage.New(ctx, pgClient)
-	if err != nil {
-		logging.L(ctx).Error("failed to init storage access token", err)
-		return err
-	}
-
-	storageAccessToken, err := accessTokenStorage.New(ctx, pgClient)
-	if err != nil {
-		logging.L(ctx).Error("failed to init storage access token", err)
-		return err
-	}
-
-	storageRefreshToken, err := refreshTokenStorage.New(ctx, pgClient)
-	if err != nil {
-		logging.L(ctx).Error("failed to init storage refresh token", err)
-		return err
-	}
-
-	logging.L(ctx).Info("router initializing")
-	r := chi.NewRouter()
-
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-
-	r.Post("/oauth/registration",
-		registerHTTP.New(ctx, storage),
-	)
-
-	r.Post("/oauth/login",
-		loginHTTP.New(
-			ctx,
-			storage,
-			storageAccessToken,
-			storageRefreshToken,
-			storageClient,
-			a.cfg.Token,
-		),
-	)
-
-	r.Post("/oauth/refresh-token",
-		refreshHTTP.New(
-			ctx,
-			storageAccessToken,
-			storageRefreshToken,
-			storageClient,
-			a.cfg.Token,
-		),
-	)
-
-	var clnt = clientHTTP.New(ctx, storageClient)
-	r.Get("/oauth/get-client/{client:[a-z]{1,20}}", clnt.GetClient())
 
 	logging.L(ctx).Info("starting api server")
 
