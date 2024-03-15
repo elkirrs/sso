@@ -9,7 +9,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func GeneratePasswordHash(password string) (string, error) {
@@ -29,6 +31,20 @@ func VerifyPassword(hashedPassword, password string) error {
 func GetMD5Hash(text string) string {
 	hash := md5.Sum([]byte(text))
 	return hex.EncodeToString(hash[:])
+}
+
+func GetSecret() string {
+	length := 48
+	buf := make([]byte, length)
+	_, err := rand.Read(buf)
+	if err != nil {
+		dataTime := time.Now().UnixMilli()
+		dataByte := strconv.FormatInt(dataTime, 10)
+		sha := sha512.Sum512([]byte(dataByte))
+		str := fmt.Sprintf("%x", sha)
+		buf = []byte(str[:length])
+	}
+	return base64.StdEncoding.EncodeToString(buf)
 }
 
 func GetSHA512(key, secret string) string {

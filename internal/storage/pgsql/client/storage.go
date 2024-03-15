@@ -60,8 +60,41 @@ func (s *Storage) GetClient(ID string) (client.Client, error) {
 	return c, nil
 }
 
-func (s *Storage) CreateClient() error {
-	panic("implement me")
+func (s *Storage) CreateClient(oauthClient *client.Client) error {
+	const op = "storage.pgsql.oauth.client.CreateClient"
+	logging.L(s.ctx).Info("op", op)
+
+	querySQL := `
+		INSERT INTO %s (id, user_id, name, secret, provider, redirect, personal_access_client, password_client, revoked, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	`
+
+	querySQL = fmt.Sprintf(querySQL, migrations.TableOauthClient)
+	querySQL = loop.FormatQuery(querySQL)
+	logging.L(s.ctx).Info("prepare query", querySQL)
+
+	_, err := s.db.Exec(
+		s.ctx,
+		querySQL,
+		oauthClient.ID,
+		oauthClient.UserId,
+		oauthClient.Name,
+		oauthClient.Secret,
+		oauthClient.Provider,
+		oauthClient.Redirect,
+		oauthClient.PersonalAccessClient,
+		oauthClient.PasswordClient,
+		oauthClient.Revoked,
+		oauthClient.CreatedAt,
+		oauthClient.UpdatedAt,
+	)
+
+	if err != nil {
+		logging.L(s.ctx).Error("error query db", err)
+		return err
+	}
+
+	return nil
 }
 
 func (s *Storage) GetClientByName(name string) (client.Client, error) {

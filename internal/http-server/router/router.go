@@ -75,7 +75,8 @@ func GetRouters(ctx context.Context, pgClient *pgxpool.Pool, cfg *config.Config)
 	)
 
 	var client = clientHTTP.New(ctx, storageClient)
-	r.Get("/oauth/get-client/{client:[a-z]{1,20}}", client.GetClient())
+	r.Get("/oauth/client/{client:[a-z]{1,20}}", client.GetClient())
+	r.Post("/oauth/client", client.CreateClient())
 
 	return r, nil
 }

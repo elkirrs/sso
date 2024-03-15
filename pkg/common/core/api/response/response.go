@@ -5,6 +5,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
 	"net/http"
+	"strings"
 )
 
 type Response struct {
@@ -39,20 +40,26 @@ type ValidationErr struct {
 func ValidationError(errs validator.ValidationErrors) any {
 
 	var errMessage = map[string]string{}
+	var message string
+	var field string
+
 	for _, err := range errs {
+
+		field = strings.ToLower(err.Field())
 
 		switch err.ActualTag() {
 		case "required":
-			errMessage[err.Field()] = fmt.Sprintf("field is a required")
+			message = fmt.Sprintf("field is a required")
 		case "email":
-			errMessage[err.Field()] = fmt.Sprintf("field is not a valid string")
+			message = fmt.Sprintf("field is not a valid string")
 		case "min":
-			errMessage[err.Field()] = fmt.Sprintf("the field must contain at least %s characters", err.Param())
+			message = fmt.Sprintf("the field must contain at least %s characters", err.Param())
 		case "eqfield":
-			errMessage[err.Field()] = fmt.Sprintf("the field must contain at least %s characters", err.Param())
+			message = fmt.Sprintf("the field must contain at least %s characters", err.Param())
 		default:
-			errMessage[err.Field()] = fmt.Sprintf("field must be the same as field")
+			message = fmt.Sprintf("field must be the same as field")
 		}
+		errMessage[field] = message
 	}
 
 	return errMessage
