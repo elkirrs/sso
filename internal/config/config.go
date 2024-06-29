@@ -16,6 +16,7 @@ type Config struct {
 	HTTP      HTTPConfig `yaml:"http"`
 	Token     Token      `yaml:"token"`
 	AppConfig AppConfig  `yaml:"appConfig"`
+	Metrics   Metrics    `yaml:"metrics"`
 }
 
 type GRPCConfig struct {
@@ -31,7 +32,7 @@ type HTTPConfig struct {
 }
 
 type CORS struct {
-	AllowedMethods     []string `yaml:"allowed_methods" env:"HTTP-CORS-ALLOWED-METHODS"`
+	AllowedMethods     []string `yaml:"allowed_methods"`
 	AllowedOrigins     []string `yaml:"allowed_origins"`
 	AllowCredentials   bool     `yaml:"allow_credentials"`
 	AllowedHeaders     []string `yaml:"allowed_headers"`
@@ -72,6 +73,10 @@ type PGSQL struct {
 type AppConfig struct {
 	LogLevel string `yaml:"log_level" env-default:"trace"`
 	LogJSON  bool   `yaml:"log_json" env-default:"false"`
+}
+
+type Metrics struct {
+	Port int `yaml:"port"`
 }
 
 func MustLoad() *Config {

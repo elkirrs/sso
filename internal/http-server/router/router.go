@@ -6,6 +6,7 @@ import (
 	loginHTTP "app/internal/http-server/handlers/login"
 	refreshHTTP "app/internal/http-server/handlers/refresh-token"
 	registerHTTP "app/internal/http-server/handlers/register"
+	m "app/internal/http-server/middleware"
 	clientStorage "app/internal/storage/pgsql/client"
 	accessTokenStorage "app/internal/storage/pgsql/oauth/access-token"
 	refreshTokenStorage "app/internal/storage/pgsql/oauth/refresh-token"
@@ -48,6 +49,7 @@ func GetRouters(ctx context.Context, pgClient *pgxpool.Pool, cfg *config.Config)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(m.MetricsPrometheus)
 
 	r.Post("/oauth/registration",
 		registerHTTP.New(ctx, storageUser),

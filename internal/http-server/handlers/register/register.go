@@ -24,7 +24,7 @@ type Request struct {
 	Name            string `json:"name" validate:"required,ascii"`
 	Email           string `json:"email" validate:"required,email"`
 	Password        string `json:"password" validate:"required,ascii,min=9"`
-	ConfirmPassword string `json:"confirm_password" validate:"required,eqfield=Password"`
+	ConfirmPassword string `json:"confirmPassword" validate:"required,eqfield=Password"`
 }
 
 type Response struct {

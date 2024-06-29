@@ -2,21 +2,30 @@
 
 env: "local" # dev, prod
 host: "0.0.0.0"
+
 grpc:
   port: 5463
   timeout: 5s
   type: tcp
+
 http:
   port: 5462
   read_timeout: 4s
   write_timeout: 4s
   cors:
     debug: true
-    allowed-methods: [ "GET", "POST", "PATCH", "PUT", "OPTIONS", "DELETE" ]
-    allowed-origins:
-      - "http://localhost:5462"
-    allow-credentials: true
-    allowed-headers:
+    allowed_methods:
+      - "GET"
+      - "HEAD"
+      - "POST"
+      - "PATCH"
+      - "PUT"
+      - "OPTIONS"
+      - "DELETE"
+    allowed_origins:
+      - "*"
+    allow_credentials: true
+    allowed_headers:
       - "Authorization"
       - "Location"
       - "Charset"
@@ -27,11 +36,12 @@ http:
       - "Content-Length"
       - "Accept-Encoding"
       - "X-CSRF-Token"
-    options-passthrough: true
-    exposed-headers:
+    options_passthrough: false
+    exposed_headers:
       - "Location"
       - "Authorization"
       - "Content-Disposition"
+
 db:
   max_attempts: 5
   max_delay: 3s
@@ -47,11 +57,16 @@ db:
     attempts: 5
     host: "postgres"
     sslmode: "disable"
+
 token:
   ttl: 20m
   refresh: 72h
   secret: "2baf1d115376UCi6hvKCpM"
   secret_refresh: "Y2Vzc19pZCI6Ijk2ZDg4MDM4MjMyQ1MWUxZjkzMDZiMTgwZmFhNzc4YmFmMT"
+
 appConfig:
   log_level: "trace"
   log_json: false
+
+metrics:
+  port: 5464

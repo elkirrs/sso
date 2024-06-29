@@ -1,24 +1,25 @@
 package app
 
 import (
+	appGRPC "app/internal/app/grpc"
+	appApi "app/internal/app/http"
+	appMetrics "app/internal/app/metrics"
 	"app/internal/config"
-	"app/internal/http-server/router"
 	"app/pkg/client/pgsql"
 	"app/pkg/common/logging"
 	"context"
-	"errors"
-	"fmt"
 	"github.com/go-chi/chi"
-	"github.com/rs/cors"
-	"net"
-	"net/http"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type App struct {
-	ctx        context.Context
-	router     *chi.Mux
-	httpServer *http.Server
-	cfg        *config.Config
+	ctx              context.Context
+	router           *chi.Mux
+	httpServerApp    *appApi.App
+	gRPCServerApp    *appGRPC.App
+	cfg              *config.Config
+	pgClient         *pgxpool.Pool
+	metricsServerApp *appMetrics.App
 }
 
 func New(
@@ -39,70 +40,42 @@ func (a *App) MustRun() {
 
 func (a *App) Run() error {
 	const op = "app.Run"
-	ctx := a.ctx
-	logging.L(ctx).Info("op", op)
+	logging.L(a.ctx).Info("op", op)
 
-	logging.WithAttrs(ctx,
+	logging.WithAttrs(a.ctx,
 		logging.StringAttr("host", a.cfg.Host),
 		logging.IntAttr("port", a.cfg.HTTP.Port),
 	)
 
-	pgClient, err := pgsql.New(ctx, a.cfg.DB)
+	pgClient, err := pgsql.New(a.ctx, a.cfg.DB)
 
 	if err != nil {
-		logging.L(ctx).Error("failed to connect to db", err)
+		logging.L(a.ctx).Error("failed to connect to db", err)
 		return err
 	}
 
-	logging.L(ctx).Info("DB connected")
+	a.pgClient = pgClient
 
-	r, err := router.GetRouters(ctx, pgClient, a.cfg)
+	logging.L(a.ctx).Info("DB connected")
 
-	if err != nil {
-		logging.L(ctx).Error("failed to create routers", err)
-		return err
-	}
+	a.httpServerApp = appApi.New(a.ctx, pgClient, a.cfg)
+	a.gRPCServerApp = appGRPC.New(a.ctx, pgClient, a.cfg)
+	a.metricsServerApp = appMetrics.New(a.ctx, a.cfg)
 
-	logging.L(ctx).Info("starting api server")
-
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", a.cfg.HTTP.Port))
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	c := cors.New(cors.Options{
-		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodOptions, http.MethodDelete},
-		//AllowedOrigins:     []string{"http://localhost:3000", "http://localhost:80"},
-		//AllowCredentials:   true,
-		//AllowedHeaders:     []string{"Location", "Charset", "Access-Control-Allow-Origin", "Content-Type", "content-type", "Origin", "Accept", "Content-Length", "Accept-Encoding", "X-CSRF-Token"},
-		//OptionsPassthrough: true,
-		//ExposedHeaders:     []string{"Location", "Authorization", "Content-Disposition"},
-		// Enable Debugging for testing, consider disabling in production
-		//Debug: false,
-	})
-
-	handler := c.Handler(r)
-
-	a.httpServer = &http.Server{
-		Handler:      handler,
-		WriteTimeout: a.cfg.HTTP.WriteTimeout,
-		ReadTimeout:  a.cfg.HTTP.ReadTimeout,
-	}
-
-	if err := a.httpServer.Serve(l); err != nil {
-		switch {
-		case errors.Is(err, http.ErrServerClosed):
-			logging.L(ctx).Warn("server shutdown")
-			return fmt.Errorf("%s: %w", op, err)
-		default:
-			return fmt.Errorf("%s: %w", op, err)
-		}
-	}
-
-	if err := a.httpServer.Shutdown(ctx); err != nil {
-		logging.L(ctx).Error("failed to stop server", err)
-		return err
-	}
+	go a.httpServerApp.MustRun()
+	go a.gRPCServerApp.MustRun()
+	go a.metricsServerApp.MustRun()
 
 	return nil
+}
+
+func (a *App) Stop() {
+	const op = "app.Stop"
+	logging.L(a.ctx).Info("op", op)
+
+	a.httpServerApp.Stop()
+	a.gRPCServerApp.Stop()
+
+	a.pgClient.Close()
+	logging.L(a.ctx).Info("connect to db closed")
 }

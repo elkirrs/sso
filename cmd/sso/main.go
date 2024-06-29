@@ -11,13 +11,8 @@ import (
 	"syscall"
 )
 
-const (
-	envLocal = "local"
-	envDev   = "dev"
-	envProd  = "prod"
-)
-
 func main() {
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -36,33 +31,14 @@ func main() {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	go application.MustRun()
+	application.MustRun()
 
 	sign := <-done
 
 	logger.Info("stopped application", slog.String("signal", sign.String()))
 
-	//application.GRPCServer.Stop()
+	//application.Stop()
 
 	logger.Info("app stopped")
 
-}
-
-func setupLogger(env string) *slog.Logger {
-	var log *slog.Logger
-
-	switch env {
-	case envLocal:
-		log = slog.New(
-			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	case envDev:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	case envProd:
-		log = slog.New(
-			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-	}
-
-	return log
 }

@@ -92,7 +92,7 @@ func New(
 
 		if err != nil {
 			logging.L(ctx).Error("failed login user")
-			dR["message"] = "failed login user"
+			dR["message"] = "user not found"
 			resp.Error(w, r, dR)
 			return
 		}
