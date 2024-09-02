@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChatHistory">
+    <accountData>
+      <list>
+        <AccountData>
+          <accountId value="VXNlcjo1MjY4OTU=" />
+          <chats>
+            <list>
+              <chat>
+                <enhancedContext>
+                  <enhancedContext>
+                    <isEnabled value="false" />
+                  </enhancedContext>
+                </enhancedContext>
+                <internalId value="237a1f6f-597c-4bf0-8af6-82ef6002e603" />
+                <llm>
+                  <llm>
+                    <model value="openai/gpt-3.5-turbo" />
+                    <provider value="OpenAI" />
+                    <tags>
+                      <list>
+                        <option value="gateway" />
+                        <option value="speed" />
+                      </list>
+                    </tags>
+                    <title value="GPT-3.5 Turbo" />
+                    <usage>
+                      <list>
+                        <option value="chat" />
+                        <option value="edit" />
+                      </list>
+                    </usage>
+                  </llm>
+                </llm>
+              </chat>
+              <chat>
+                <enhancedContext>
+                  <enhancedContext>
+                    <isEnabled value="false" />
+                  </enhancedContext>
+                </enhancedContext>
+                <internalId value="943d930c-44c9-4b95-92ab-6c278e445171" />
+                <llm>
+                  <llm>
+                    <model value="openai/gpt-3.5-turbo" />
+                    <provider value="OpenAI" />
+                    <tags>
+                      <list>
+                        <option value="gateway" />
+                        <option value="speed" />
+                      </list>
+                    </tags>
+                    <title value="GPT-3.5 Turbo" />
+                    <usage>
+                      <list>
+                        <option value="chat" />
+                        <option value="edit" />
+                      </list>
+                    </usage>
+                  </llm>
+                </llm>
+              </chat>
+              <chat>
+                <enhancedContext>
+                  <enhancedContext>
+                    <isEnabled value="false" />
+                  </enhancedContext>
+                </enhancedContext>
+                <internalId value="312ce93f-7929-4129-9373-ff141636b8ab" />
+              </chat>
+              <chat>
+                <enhancedContext>
+                  <enhancedContext>
+                    <isEnabled value="false" />
+                  </enhancedContext>
+                </enhancedContext>
+                <internalId value="12203f14-afe1-4acb-a51a-48d761b7cc6d" />
+                <llm>
+                  <llm>
+                    <model value="openai/gpt-3.5-turbo" />
+                    <provider value="OpenAI" />
+                    <tags>
+                      <list>
+                        <option value="gateway" />
+                        <option value="speed" />
+                      </list>
+                    </tags>
+                    <title value="GPT-3.5 Turbo" />
+                    <usage>
+                      <list>
+                        <option value="chat" />
+                        <option value="edit" />
+                      </list>
+                    </usage>
+                  </llm>
+                </llm>
+              </chat>
+              <chat>
+                <enhancedContext>
+                  <enhancedContext>
+                    <isEnabled value="false" />
+                  </enhancedContext>
+                </enhancedContext>
+                <internalId value="c770e454-ebb0-4856-9c84-30444e1586f0" />
+                <llm>
+                  <llm>
+                    <model value="openai/gpt-3.5-turbo" />
+                    <provider value="OpenAI" />
+                    <tags>
+                      <list>
+                        <option value="gateway" />
+                        <option value="speed" />
+                      </list>
+                    </tags>
+                    <title value="GPT-3.5 Turbo" />
+                    <usage>
+                      <list>
+                        <option value="chat" />
+                        <option value="edit" />
+                      </list>
+                    </usage>
+                  </llm>
+                </llm>
+              </chat>
+            </list>
+          </chats>
+          <defaultEnhancedContext>
+            <enhancedContext>
+              <isEnabled value="false" />
+            </enhancedContext>
+          </defaultEnhancedContext>
+          <defaultLlm>
+            <llm>
+              <model value="openai/gpt-3.5-turbo" />
+              <provider value="OpenAI" />
+              <tags>
+                <list>
+                  <option value="gateway" />
+                  <option value="speed" />
+                </list>
+              </tags>
+              <title value="GPT-3.5 Turbo" />
+              <usage>
+                <list>
+                  <option value="chat" />
+                  <option value="edit" />
+                </list>
+              </usage>
+            </llm>
+          </defaultLlm>
+        </AccountData>
+      </list>
+    </accountData>
+  </component>
+</project>
