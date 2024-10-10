@@ -108,7 +108,7 @@ func New(
 		clientStorage, err := client.GetClient(req.ClientId)
 		if err != nil {
 			logging.L(ctx).Error("client storage")
-			dR["message"] = "client storage"
+			dR["message"] = "invalid client storage"
 			resp.Error(w, r, dR)
 			return
 		}
@@ -121,7 +121,6 @@ func New(
 		}
 
 		accessTokenString, err := token.GenerateAccessToken(accessTokenPayload, cfg.TTL, clientStorage.Secret)
-
 		if err != nil {
 			logging.L(ctx).Error("failed generate access token")
 			logging.L(ctx).Error("error", err)
@@ -132,7 +131,6 @@ func New(
 
 		dateTime := time.Now().Unix()
 		dateTimeExp := time.Now().Add(cfg.TTL).Unix()
-
 		var aToken = &accessTokenDomain.AccessToken{
 			ID:        crypt.GetMD5Hash(identity.NewGenerator().GenerateUUIDv4String()),
 			UserId:    userStorage.ID,
@@ -144,7 +142,6 @@ func New(
 		}
 
 		accessTokenId, err := accessToken.CreateToken(aToken)
-
 		if err != nil {
 			logging.L(ctx).Error("failed create access token")
 			dR["message"] = "failed create token"
@@ -152,11 +149,9 @@ func New(
 			return
 		}
 
-		logging.L(ctx).Info("client access token id ", accessTokenId)
-
 		dateTimeExpRefresh := time.Now().Add(cfg.Refresh).Unix()
 		var rToken = &refreshTokenDomain.RefreshToken{
-			ID:            crypt.GetMD5Hash(time.Now().String()),
+			ID:            crypt.GetMD5Hash(identity.NewGenerator().GenerateUUIDv4String()),
 			AccessTokenId: accessTokenId,
 			Revoked:       false,
 			ExpiresAt:     dateTimeExpRefresh,
@@ -182,7 +177,6 @@ func New(
 		}
 
 		refreshTokenString, err := token.GenerateRefreshToken(refreshTokenPayload)
-
 		if err != nil {
 			logging.L(ctx).Error("failed generate refresh token", err)
 			dR["message"] = "failed create token"
@@ -190,12 +184,10 @@ func New(
 			return
 		}
 
-		expAccessToken := time.Now().Add(cfg.TTL).Unix()
-
 		var dRS = &Response{
 			AccessToken:  accessTokenString,
 			RefreshToken: refreshTokenString,
-			ExpiredAt:    expAccessToken,
+			ExpiredAt:    time.Now().Add(cfg.TTL).Unix(),
 		}
 
 		resp.Ok(w, r, dRS)

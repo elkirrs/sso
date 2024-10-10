@@ -17,6 +17,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,7 @@ type AccessToken interface {
 type RefreshToken interface {
 	CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (string, error)
 	GetToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDomain.RefreshToken, error)
+	GetLastReceivedToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDomain.RefreshToken, error)
 	UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 }
 
@@ -102,19 +104,39 @@ func New(
 			ID:            oldPayloadRefreshToken.TokenRefreshId,
 		}
 
-		rTQ, err := refreshToken.GetToken(rT)
-		if err != nil {
-			logging.L(ctx).Error("not fount refresh token in database")
-			dR["message"] = "refresh token invalid"
-			resp.Error(w, r, dR)
-			return
-		}
+		results := make(chan refreshTokenDomain.RefreshToken, 2)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go getToken(refreshToken, rT, results, &wg)
+		wg.Add(1)
+		go getLastReceivedToken(refreshToken, rT, results, &wg)
 
-		if rTQ.Revoked {
-			logging.L(ctx).Error("refresh token is revoked")
-			dR["message"] = "refresh token invalid"
-			resp.Error(w, r, dR)
-			return
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		for result := range results {
+			if result.ID == "" {
+				logging.L(ctx).Error("failed to retrieve refresh token")
+				dR["message"] = "refresh token invalid"
+				resp.Error(w, r, dR)
+				return
+			}
+
+			if result.Revoked {
+				logging.L(ctx).Error("refresh token is revoked")
+				dR["message"] = "refresh token invalid"
+				resp.Error(w, r, dR)
+				return
+			}
+
+			if result.ID != rT.ID {
+				logging.L(ctx).Error("refresh token mismatch with the last received token")
+				dR["message"] = "refresh token invalid"
+				resp.Error(w, r, dR)
+				return
+			}
 		}
 
 		var aT = &accessTokenDomain.AccessToken{
@@ -237,4 +259,38 @@ func New(
 		resp.Ok(w, r, dRS)
 		return
 	}
+}
+
+func getToken(
+	refreshToken RefreshToken,
+	rT *refreshTokenDomain.RefreshToken,
+	results chan<- refreshTokenDomain.RefreshToken,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+
+	rTQ, err := refreshToken.GetToken(rT)
+	if err != nil {
+		results <- refreshTokenDomain.RefreshToken{}
+		return
+	}
+
+	results <- rTQ
+}
+
+func getLastReceivedToken(
+	refreshToken RefreshToken,
+	rT *refreshTokenDomain.RefreshToken,
+	results chan<- refreshTokenDomain.RefreshToken,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+
+	rTQ, err := refreshToken.GetLastReceivedToken(rT)
+	if err != nil {
+		results <- refreshTokenDomain.RefreshToken{}
+		return
+	}
+
+	results <- rTQ
 }

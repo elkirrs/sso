@@ -66,7 +66,7 @@ func (s *Storage) ExistsToken(aT *accessToken.AccessToken) (bool, error) {
 	logging.L(s.ctx).Info("op", op)
 	var isExists bool
 	querySQL := `
-		SELECT (COUNT(*)::smallint)::int::bool as isExists
+		SELECT (COUNT(*) > 0) as isExists
 		FROM %s
 		WHERE id = $1 AND user_id = $2 AND client_id = $3
 	`

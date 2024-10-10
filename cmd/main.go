@@ -37,7 +37,7 @@ func main() {
 
 	logger.Info("stopped application", slog.String("signal", sign.String()))
 
-	//application.Stop()
+	application.Stop()
 
 	logger.Info("app stopped")
 

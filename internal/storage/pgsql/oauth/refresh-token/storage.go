@@ -56,7 +56,7 @@ func (s *Storage) ExistsToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	logging.L(s.ctx).Info("op", op)
 	var isExists bool
 	querySQL := `
-		SELECT (COUNT(*)::smallint)::int::bool as isExists
+		SELECT (COUNT(*) > 0) as isExists
 		FROM %s
 		WHERE id = $1 AND access_token_id = $2
 	`
@@ -139,4 +139,48 @@ func (s *Storage) UpdateToken(rT *refreshTokenDomain.RefreshToken) (bool, error)
 	}
 
 	return true, nil
+}
+
+func (s *Storage) GetLastReceivedToken(rT *refreshTokenDomain.RefreshToken) (refreshTokenDomain.RefreshToken, error) {
+	const op = "storage.pgsql.oauth.refresh-token.GetLastReceivedToken"
+	logging.L(s.ctx).Info("op", op)
+	var rTQ = refreshTokenDomain.RefreshToken{}
+
+	querySQL := `
+		SELECT oauth_refresh_tokens.id,
+			   oauth_refresh_tokens.access_token_id,
+			   oauth_refresh_tokens.revoked,
+			   oauth_refresh_tokens.expires_at
+		FROM oauth_access_tokens
+		INNER JOIN oauth_refresh_tokens on oauth_access_tokens.id = oauth_refresh_tokens.access_token_id
+		WHERE oauth_access_tokens.user_id = (SELECT oauth_access_tokens.user_id
+							FROM oauth_refresh_tokens
+							INNER JOIN oauth_access_tokens
+								ON oauth_access_tokens.id = oauth_refresh_tokens.access_token_id
+							WHERE oauth_refresh_tokens.id = $1
+								AND oauth_refresh_tokens.access_token_id = $2)
+		ORDER BY oauth_refresh_tokens.expires_at DESC
+		LIMIT 1
+	`
+	querySQL = loop.FormatQuery(querySQL)
+	logging.L(s.ctx).Info("query", querySQL)
+
+	err := s.db.QueryRow(
+		s.ctx,
+		querySQL,
+		rT.ID,
+		rT.AccessTokenId,
+	).Scan(
+		&rTQ.ID,
+		&rTQ.AccessTokenId,
+		&rTQ.Revoked,
+		&rTQ.ExpiresAt,
+	)
+
+	if err != nil {
+		logging.L(s.ctx).Error("error query", err)
+		return refreshTokenDomain.RefreshToken{}, err
+	}
+
+	return rTQ, nil
 }

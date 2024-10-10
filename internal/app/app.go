@@ -75,6 +75,7 @@ func (a *App) Stop() {
 
 	a.httpServerApp.Stop()
 	a.gRPCServerApp.Stop()
+	a.metricsServerApp.Stop()
 
 	a.pgClient.Close()
 	logging.L(a.ctx).Info("connect to db closed")
