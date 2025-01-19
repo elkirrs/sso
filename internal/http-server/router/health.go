@@ -2,21 +2,19 @@ package routes
 
 import (
 	"app/internal/config"
-	"app/internal/storage"
+	"app/internal/http-server/handlers/health"
 	"app/pkg/client/rabbitmq"
 	"context"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func RegisterRoutes(
+func RegisterHealthRoutes(
 	r chi.Router,
 	ctx context.Context,
 	cfg *config.Config,
-	storages *storage.Storage,
 	pgClient *pgxpool.Pool,
 	amqpClient *rabbitmq.App,
 ) {
-	RegisterOAuthRoutes(r, ctx, storages, cfg)
-	RegisterHealthRoutes(r, ctx, cfg, pgClient, amqpClient)
+	r.Get("/health", health.New(ctx, cfg, pgClient, amqpClient))
 }

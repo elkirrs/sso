@@ -18,12 +18,6 @@
                   <llm>
                     <model value="openai/gpt-3.5-turbo" />
                     <provider value="OpenAI" />
-                    <tags>
-                      <list>
-                        <option value="gateway" />
-                        <option value="speed" />
-                      </list>
-                    </tags>
                     <title value="GPT-3.5 Turbo" />
                     <usage>
                       <list>
@@ -45,12 +39,6 @@
                   <llm>
                     <model value="openai/gpt-3.5-turbo" />
                     <provider value="OpenAI" />
-                    <tags>
-                      <list>
-                        <option value="gateway" />
-                        <option value="speed" />
-                      </list>
-                    </tags>
                     <title value="GPT-3.5 Turbo" />
                     <usage>
                       <list>
@@ -80,12 +68,6 @@
                   <llm>
                     <model value="openai/gpt-3.5-turbo" />
                     <provider value="OpenAI" />
-                    <tags>
-                      <list>
-                        <option value="gateway" />
-                        <option value="speed" />
-                      </list>
-                    </tags>
                     <title value="GPT-3.5 Turbo" />
                     <usage>
                       <list>
@@ -107,12 +89,6 @@
                   <llm>
                     <model value="openai/gpt-3.5-turbo" />
                     <provider value="OpenAI" />
-                    <tags>
-                      <list>
-                        <option value="gateway" />
-                        <option value="speed" />
-                      </list>
-                    </tags>
                     <title value="GPT-3.5 Turbo" />
                     <usage>
                       <list>

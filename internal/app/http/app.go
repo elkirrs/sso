@@ -2,11 +2,12 @@ package app
 
 import (
 	"app/internal/config"
-	"app/internal/http-server/router"
+	server "app/internal/http-server"
+	"app/pkg/client/rabbitmq"
 	"app/pkg/common/logging"
 	"context"
 	"fmt"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/cors"
 	"net"
@@ -19,17 +20,20 @@ type App struct {
 	httpServer *http.Server
 	cfg        *config.Config
 	pgClient   *pgxpool.Pool
+	amqpClient *rabbitmq.App
 }
 
 func New(
 	ctx context.Context,
 	pgClient *pgxpool.Pool,
 	cfg *config.Config,
+	amqpClient *rabbitmq.App,
 ) *App {
 	return &App{
-		ctx:      ctx,
-		cfg:      cfg,
-		pgClient: pgClient,
+		ctx:        ctx,
+		cfg:        cfg,
+		pgClient:   pgClient,
+		amqpClient: amqpClient,
 	}
 }
 
@@ -48,7 +52,7 @@ func (a *App) Run() error {
 		logging.IntAttr("port", a.cfg.HTTP.Port),
 	)
 
-	r, err := router.GetRouters(a.ctx, a.pgClient, a.cfg)
+	r, err := server.New(a.ctx, a.pgClient, a.cfg, a.amqpClient)
 
 	if err != nil {
 		logging.L(a.ctx).Error("failed to create routers", err)

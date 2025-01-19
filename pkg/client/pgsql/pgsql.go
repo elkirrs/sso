@@ -36,7 +36,7 @@ func New(
 		return nil, parseConfigErr
 	}
 
-	err = loop.DoWithAttempt(func() error {
+	err = loop.DoWithAttempt(ctx, func() error {
 		pingErr := pool.Ping(ctx)
 		if pingErr != nil {
 			logging.L(ctx).Warn("Failed to connect to postgres due to error", pingErr)

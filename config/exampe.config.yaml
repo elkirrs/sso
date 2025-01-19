@@ -59,7 +59,7 @@ db:
     sslmode: "disable"
 
 token:
-  ttl: 120m
+  ttl: 20m
   refresh: 72h
   secret: "2baf1d115376UCi6hvKCpM"
   secret_refresh: "Y2Vzc19pZCI6Ijk2ZDg4MDM4MjMyQ1MWUxZjkzMDZiMTgwZmFhNzc4YmFmMT"

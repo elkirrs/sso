@@ -17,6 +17,7 @@ type Config struct {
 	Token     Token      `yaml:"token"`
 	AppConfig AppConfig  `yaml:"appConfig"`
 	Metrics   Metrics    `yaml:"metrics"`
+	Queue     Queue      `yaml:"queue"`
 }
 
 type GRPCConfig struct {
@@ -77,6 +78,16 @@ type AppConfig struct {
 
 type Metrics struct {
 	Port int `yaml:"port"`
+}
+
+type Queue struct {
+	Driver      string        `yaml:"driver"`
+	Host        string        `yaml:"host"`
+	Port        int           `yaml:"port"`
+	User        string        `yaml:"user"`
+	Pass        string        `yaml:"pass"`
+	MaxAttempts int           `yaml:"max_attempts" env-default:"3"`
+	MaxDelay    time.Duration `yaml:"max_delay" env-default:"6s"`
 }
 
 func MustLoad() *Config {

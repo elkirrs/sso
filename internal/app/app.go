@@ -6,9 +6,10 @@ import (
 	appMetrics "app/internal/app/metrics"
 	"app/internal/config"
 	"app/pkg/client/pgsql"
+	"app/pkg/client/rabbitmq"
 	"app/pkg/common/logging"
 	"context"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,6 +21,7 @@ type App struct {
 	cfg              *config.Config
 	pgClient         *pgxpool.Pool
 	metricsServerApp *appMetrics.App
+	amqpClient       *rabbitmq.App
 }
 
 func New(
@@ -55,10 +57,24 @@ func (a *App) Run() error {
 	}
 
 	a.pgClient = pgClient
-
 	logging.L(a.ctx).Info("DB connected")
 
-	a.httpServerApp = appApi.New(a.ctx, pgClient, a.cfg)
+	if a.cfg.Queue.Driver != "" {
+		a.amqpClient = rabbitmq.New(a.ctx, a.cfg)
+		err = a.amqpClient.Connect()
+		if err != nil {
+			logging.L(a.ctx).Error("Couldn't connect to RabbitMQ: ", err)
+			return err
+		}
+		err = a.amqpClient.SetupQueueAndExchange("logs")
+
+		if err != nil {
+			logging.L(a.ctx).Error("Error during setup RabbitMQ: ", err)
+			return err
+		}
+	}
+
+	a.httpServerApp = appApi.New(a.ctx, pgClient, a.cfg, a.amqpClient)
 	a.gRPCServerApp = appGRPC.New(a.ctx, pgClient, a.cfg)
 	a.metricsServerApp = appMetrics.New(a.ctx, a.cfg)
 
@@ -77,6 +93,11 @@ func (a *App) Stop() {
 	a.gRPCServerApp.Stop()
 	a.metricsServerApp.Stop()
 
-	a.pgClient.Close()
-	logging.L(a.ctx).Info("connect to db closed")
+	if a.pgClient != nil {
+		a.pgClient.Close()
+		logging.L(a.ctx).Info("Connection to DB closed")
+	}
+
+	a.amqpClient.Close()
+	logging.L(a.ctx).Info("Connection to RabbitMQ closed")
 }

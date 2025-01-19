@@ -1,22 +1,30 @@
 package middleware
 
 import (
-	"app/internal/metrics"
-	"github.com/go-chi/chi/middleware"
-	"net/http"
-	"time"
+	"app/internal/config"
+	"app/pkg/client/rabbitmq"
+	"app/pkg/common/logging"
+	"context"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
-func MetricsPrometheus(next http.Handler) http.Handler {
-	fn := func(w http.ResponseWriter, r *http.Request) {
-		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+func RegisterMiddlewares(
+	r chi.Router,
+	ctx context.Context,
+	cfg *config.Config,
+	amqpClient *rabbitmq.App,
+) {
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-		defer func() {
-			metrics.ObserveHttpRequest(time.Since(time.Now()), ww.Status())
-		}()
+	r.Use(MetricsPrometheus)
 
-		next.ServeHTTP(ww, r)
+	if cfg.Queue.Driver != "" {
+		r.Use(Logging(ctx, amqpClient))
 	}
 
-	return http.HandlerFunc(fn)
+	logging.L(ctx).Info("Middleware initialized successfully")
 }

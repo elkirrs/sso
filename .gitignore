@@ -1,3 +1,4 @@
 /storage
 bin
 .idea
+./config/config.yaml
