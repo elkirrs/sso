@@ -58,6 +58,7 @@ func (a *App) Run() error {
 	logging.L(a.ctx).Info("gRPC server is running", logging.StringAttr("addr", l.Addr().String()))
 
 	client.Register(a.ctx, a.gRPCServer, a.pgClient)
+	//registration.Register(a.ctx, a.gRPCServer, a.pgClient)
 
 	if err := a.gRPCServer.Serve(l); err != nil {
 		return fmt.Errorf("%s: %w", op, err)

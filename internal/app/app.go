@@ -4,6 +4,7 @@ import (
 	appGRPC "app/internal/app/grpc"
 	appApi "app/internal/app/http"
 	appMetrics "app/internal/app/metrics"
+	appQueue "app/internal/app/queue"
 	"app/internal/config"
 	"app/pkg/client/pgsql"
 	"app/pkg/client/rabbitmq"
@@ -19,9 +20,10 @@ type App struct {
 	httpServerApp    *appApi.App
 	gRPCServerApp    *appGRPC.App
 	cfg              *config.Config
-	pgClient         *pgxpool.Pool
+	dbClient         *pgxpool.Pool
 	metricsServerApp *appMetrics.App
-	amqpClient       *rabbitmq.App
+	queueClient      *rabbitmq.App
+	queueApp         *appQueue.App
 }
 
 func New(
@@ -49,38 +51,35 @@ func (a *App) Run() error {
 		logging.IntAttr("port", a.cfg.HTTP.Port),
 	)
 
-	pgClient, err := pgsql.New(a.ctx, a.cfg.DB)
+	dbClient, err := pgsql.New(a.ctx, a.cfg.DB)
 
 	if err != nil {
 		logging.L(a.ctx).Error("failed to connect to db", err)
 		return err
 	}
 
-	a.pgClient = pgClient
+	a.dbClient = dbClient
 	logging.L(a.ctx).Info("DB connected")
 
-	if a.cfg.Queue.Driver != "" {
-		a.amqpClient = rabbitmq.New(a.ctx, a.cfg)
-		err = a.amqpClient.Connect()
-		if err != nil {
-			logging.L(a.ctx).Error("Couldn't connect to RabbitMQ: ", err)
-			return err
-		}
-		err = a.amqpClient.SetupQueueAndExchange("logs")
+	queueClient, err := rabbitmq.New(a.ctx, a.cfg.Queue)
 
-		if err != nil {
-			logging.L(a.ctx).Error("Error during setup RabbitMQ: ", err)
-			return err
-		}
+	if err != nil {
+		logging.L(a.ctx).Error("failed to connect to queue", err)
+		return err
 	}
 
-	a.httpServerApp = appApi.New(a.ctx, pgClient, a.cfg, a.amqpClient)
-	a.gRPCServerApp = appGRPC.New(a.ctx, pgClient, a.cfg)
+	a.queueClient = queueClient
+	logging.L(a.ctx).Info("Queue connected")
+
+	a.httpServerApp = appApi.New(a.ctx, dbClient, a.cfg, queueClient)
+	a.gRPCServerApp = appGRPC.New(a.ctx, dbClient, a.cfg)
 	a.metricsServerApp = appMetrics.New(a.ctx, a.cfg)
+	a.queueApp = appQueue.New(a.ctx, a.cfg, queueClient, dbClient)
 
 	go a.httpServerApp.MustRun()
 	go a.gRPCServerApp.MustRun()
 	go a.metricsServerApp.MustRun()
+	go a.queueApp.MustRun()
 
 	return nil
 }
@@ -93,11 +92,11 @@ func (a *App) Stop() {
 	a.gRPCServerApp.Stop()
 	a.metricsServerApp.Stop()
 
-	if a.pgClient != nil {
-		a.pgClient.Close()
+	if a.dbClient != nil {
+		a.dbClient.Close()
 		logging.L(a.ctx).Info("Connection to DB closed")
 	}
 
-	a.amqpClient.Close()
+	a.queueClient.Close()
 	logging.L(a.ctx).Info("Connection to RabbitMQ closed")
 }

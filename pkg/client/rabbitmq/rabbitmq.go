@@ -11,26 +11,46 @@ import (
 
 type App struct {
 	ctx  context.Context
-	cfg  *config.Config
+	cfg  config.Queue
 	conn *amqp.Connection
 	ch   *amqp.Channel
 }
 
+type MessageProcessor interface {
+	Process(ctx context.Context, msg amqp.Delivery) error
+}
+
 func New(
 	ctx context.Context,
-	cfg *config.Config,
-) *App {
-	return &App{
+	cfg config.Queue,
+) (*App, error) {
+	app := &App{
 		ctx: ctx,
 		cfg: cfg,
 	}
+
+	if cfg.Driver != "" {
+		err := app.Connect()
+		if err != nil {
+			logging.L(ctx).Error("Couldn't connect to RabbitMQ: ", err)
+			return nil, err
+		}
+
+		err = app.SetupQueueAndExchange("logs")
+		if err != nil {
+			logging.L(ctx).Error("Error during setup RabbitMQ: ", err)
+			return nil, err
+		}
+	}
+
+	return app, nil
 }
 
 func (a *App) Connect() error {
 
 	logging.L(a.ctx).Info("Connecting to RabbitMQ")
 
-	dns := fmt.Sprintf("amqp://%s:%s@%s:%d/", a.cfg.Queue.User, a.cfg.Queue.Pass, a.cfg.Queue.Host, a.cfg.Queue.Port)
+	dns := fmt.Sprintf("amqp://%s:%s@%s:%d/", a.cfg.User, a.cfg.Pass, a.cfg.Host, a.cfg.Port)
 
 	var conn *amqp.Connection
 	var ch *amqp.Channel
@@ -39,7 +59,7 @@ func (a *App) Connect() error {
 	err = loop.DoWithAttempt(a.ctx, func() error {
 		conn, err = amqp.Dial(dns)
 		if err != nil {
-			logging.L(a.ctx).Error("Error connect to RabbitMQ: %v. Repeat after %s seconds...", err, a.cfg.Queue.MaxDelay)
+			logging.L(a.ctx).Error("Error connect to RabbitMQ: %v. Repeat after %s seconds...", err, a.cfg.MaxDelay)
 			return err
 		}
 		ch, err = conn.Channel()
@@ -48,7 +68,7 @@ func (a *App) Connect() error {
 			return err
 		}
 		return nil
-	}, a.cfg.Queue.MaxAttempts, a.cfg.Queue.MaxDelay)
+	}, a.cfg.MaxAttempts, a.cfg.MaxDelay)
 
 	logging.L(a.ctx).Info("RabbitMQ connected")
 
@@ -88,7 +108,7 @@ func (a *App) SetupQueueAndExchange(NameQueue string) error {
 	err = a.ch.QueueBind(
 		NameQueue,
 		"",
-		"sso",
+		"amq.direct",
 		false,
 		nil,
 	)
@@ -106,7 +126,7 @@ func (a *App) Channel() *amqp.Channel {
 
 func (a *App) PublishMsg(msg []byte) {
 	err := a.ch.Publish(
-		"sso",
+		"amq.direct",
 		"",
 		false,
 		false,
@@ -120,6 +140,40 @@ func (a *App) PublishMsg(msg []byte) {
 	}
 }
 
+func (a *App) ConsumeMsg(
+	queueName string,
+	handler func(amqp.Delivery),
+) {
+	ch, err := a.conn.Channel()
+
+	if err != nil {
+		logging.L(a.ctx).Error("failed to open a channel", err)
+		return
+	}
+
+	defer ch.Close()
+
+	messages, err := ch.Consume(
+		queueName,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		logging.L(a.ctx).Error(fmt.Sprintf("failed to register consumer for %s", queueName), err)
+		return
+	}
+
+	for msg := range messages {
+		logging.L(a.ctx).Info(fmt.Sprintf("Received message from %s: %s", queueName, string(msg.Body)))
+		handler(msg)
+	}
+}
+
 func (a *App) Close() {
 
 	if a.conn == nil {
@@ -129,4 +183,38 @@ func (a *App) Close() {
 	if a.ch == nil {
 		_ = a.ch.Close()
 	}
+}
+
+func ProcessMessage(
+	ctx context.Context,
+	msg amqp.Delivery,
+	processor MessageProcessor,
+) {
+	err := processor.Process(ctx, msg)
+
+	if err != nil {
+		logging.L(ctx).Error("Failed to process message", "error", err, "message", string(msg.Body))
+
+		if isRetryableError(err) {
+			err := msg.Nack(false, true)
+			if err != nil {
+				return
+			}
+		} else {
+			err := msg.Reject(false)
+			if err != nil {
+				return
+			}
+		}
+		return
+	}
+
+	err = msg.Ack(false)
+	if err != nil {
+		return
+	}
+}
+
+func isRetryableError(err error) bool {
+	return err.Error() == "temporary failure" || err.Error() == "database unavailable"
 }
