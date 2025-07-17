@@ -2,3 +2,5 @@
 bin
 .idea
 ./config/config.yaml
+/pkg/grpc/*
+!/pkg/grpc/.gitignore
