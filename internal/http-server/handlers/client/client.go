@@ -121,7 +121,7 @@ func (s *Storage) CreateClient() http.HandlerFunc {
 		}
 
 		var oauthClient = &client.Client{
-			ID:             identity.NewGenerator().GenerateUUIDv4String(),
+			ID:             identity.UUIDv7(),
 			Name:           req.Name,
 			Secret:         crypt.GetSecret(),
 			Redirect:       req.Redirect,

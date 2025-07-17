@@ -190,7 +190,7 @@ func New(
 		dateTimeExp := time.Now().Add(cfg.TTL).Unix()
 
 		var aToken = &accessTokenDomain.AccessToken{
-			ID:        crypt.GetMD5Hash(identity.NewGenerator().GenerateUUIDv4String()),
+			ID:        crypt.GetMD5Hash(identity.UUIDv7()),
 			UserId:    oldPayloadRefreshToken.UserId,
 			ClientId:  clientStorage.ID,
 			Revoked:   false,

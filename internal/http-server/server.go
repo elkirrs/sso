@@ -16,7 +16,7 @@ func New(
 	ctx context.Context,
 	pgClient *pgxpool.Pool,
 	cfg *config.Config,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) (*chi.Mux, error) {
 	r := chi.NewRouter()
 
@@ -26,9 +26,9 @@ func New(
 		return nil, err
 	}
 
-	httpMiddleware.RegisterMiddlewares(r, ctx, cfg, amqpClient)
+	httpMiddleware.RegisterMiddlewares(r, ctx, cfg, queueClient)
 
-	routes.RegisterRoutes(r, ctx, cfg, storages, pgClient, amqpClient)
+	routes.RegisterRoutes(r, ctx, cfg, storages, pgClient, queueClient)
 
 	logging.L(ctx).Info("server prepared successfully")
 

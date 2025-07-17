@@ -24,12 +24,9 @@ import (
 type Auth interface {
 	Login(req *user.User) (user.User, error)
 }
-type AccessToken interface {
-	CreateToken(aT *accessTokenDomain.AccessToken) (string, error)
-}
 
-type RefreshToken interface {
-	CreateRefreshToken(rT *refreshTokenDomain.RefreshToken) (string, error)
+type AuthToken interface {
+	Create(aT *accessTokenDomain.AccessToken, rT *refreshTokenDomain.RefreshToken) error
 }
 
 type Client interface {
@@ -51,35 +48,21 @@ type Response struct {
 func New(
 	ctx context.Context,
 	auth Auth,
-	accessToken AccessToken,
-	refreshToken RefreshToken,
+	authToken AuthToken,
 	client Client,
 	cfg config.Token,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "http-server.handlers.login.New"
 
-		var dR = map[string]string{}
 		logging.L(ctx).With(
 			logging.StringAttr("op", op),
 			logging.StringAttr("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		var req Request
-
-		err := render.DecodeJSON(r.Body, &req)
-		if errors.Is(err, io.EOF) {
-			logging.L(ctx).Error("request body is empty")
-			dR["message"] = "empty request"
-			resp.Error(w, r, dR)
-			return
-		}
-
-		if err := validator.New().Struct(req); err != nil {
-			validateErr := err.(validator.ValidationErrors)
-			logging.L(ctx).Error("invalid request", err)
-			dR := resp.ValidationError(validateErr)
-			resp.Error(w, r, dR)
+		req, err := decodeAndValidateRequest(r, ctx)
+		if err != nil {
+			resp.Error(w, r, map[string]string{"message": "invalid request"})
 			return
 		}
 
@@ -90,107 +73,115 @@ func New(
 
 		userStorage, err := auth.Login(usr)
 
-		if err != nil {
-			logging.L(ctx).Error("failed login user")
-			dR["message"] = "user not found"
-			resp.Error(w, r, dR)
-			return
-		}
-
-		err = crypt.VerifyPassword(userStorage.Password, req.Password)
-		if err != nil {
-			logging.L(ctx).Error("incorrect login or password")
-			dR["login"] = "incorrect login or password"
-			resp.Error(w, r, dR)
+		if err != nil || crypt.VerifyPassword(userStorage.Password, req.Password) != nil {
+			logging.L(ctx).Error("authentication failed")
+			resp.Error(w, r, map[string]string{"message": "incorrect login or password"})
 			return
 		}
 
 		clientStorage, err := client.GetClient(req.ClientId)
 		if err != nil {
 			logging.L(ctx).Error("client storage")
-			dR["message"] = "invalid client storage"
-			resp.Error(w, r, dR)
+			resp.Error(w, r, map[string]string{"message": "invalid client storage"})
 			return
 		}
 
-		var accessTokenPayload = &accessTokenDomain.Payload{
-			UUID:     userStorage.UUID,
-			Email:    userStorage.Email,
-			ClientID: clientStorage.ID,
-			Scopes:   "[*]",
-		}
-
-		accessTokenString, err := token.GenerateAccessToken(accessTokenPayload, cfg.TTL, clientStorage.Secret)
+		accessTokenStr, expAt, err := generateAccessToken(userStorage, clientStorage, cfg)
 		if err != nil {
 			logging.L(ctx).Error("failed generate access token")
-			logging.L(ctx).Error("error", err)
-			dR["message"] = "failed create token"
-			resp.Error(w, r, dR)
+			resp.Error(w, r, map[string]string{"message": "failed create token"})
 			return
 		}
 
-		dateTime := time.Now().Unix()
-		dateTimeExp := time.Now().Add(cfg.TTL).Unix()
+		accessTokenID := crypt.GetMD5Hash(identity.UUIDv7())
+		now := time.Now().Unix()
+
 		var aToken = &accessTokenDomain.AccessToken{
-			ID:        crypt.GetMD5Hash(identity.NewGenerator().GenerateUUIDv4String()),
+			ID:        accessTokenID,
 			UserId:    userStorage.ID,
 			ClientId:  clientStorage.ID,
 			Revoked:   false,
-			CreatedAt: dateTime,
-			UpdatedAt: dateTime,
-			ExpiresAt: dateTimeExp,
+			CreatedAt: now,
+			UpdatedAt: now,
+			ExpiresAt: expAt,
 		}
 
-		accessTokenId, err := accessToken.CreateToken(aToken)
-		if err != nil {
-			logging.L(ctx).Error("failed create access token")
-			dR["message"] = "failed create token"
-			resp.Error(w, r, dR)
-			return
-		}
-
-		dateTimeExpRefresh := time.Now().Add(cfg.Refresh).Unix()
-		var rToken = &refreshTokenDomain.RefreshToken{
-			ID:            crypt.GetMD5Hash(identity.NewGenerator().GenerateUUIDv4String()),
-			AccessTokenId: accessTokenId,
+		refreshTokenID := crypt.GetMD5Hash(identity.UUIDv7())
+		refreshExp := time.Now().Add(cfg.Refresh).Unix()
+		rToken := &refreshTokenDomain.RefreshToken{
+			ID:            refreshTokenID,
+			AccessTokenId: accessTokenID,
 			Revoked:       false,
-			ExpiresAt:     dateTimeExpRefresh,
+			ExpiresAt:     refreshExp,
 		}
 
-		_, err = refreshToken.CreateRefreshToken(rToken)
-		if err != nil {
-			logging.L(ctx).Error("failed create refresh token")
-			dR["message"] = "failed create token"
-			resp.Error(w, r, dR)
-			return
-		}
-
-		var refreshTokenPayload = &refreshTokenDomain.Payload{
-			UUID:           userStorage.UUID,
-			Email:          userStorage.Email,
-			TokenAccessId:  accessTokenId,
-			TokenRefreshId: rToken.ID,
-			ClientId:       clientStorage.ID,
-			UserId:         userStorage.ID,
-			ExpiresAt:      dateTimeExpRefresh,
-			Scopes:         "[*]",
-		}
-
-		refreshTokenString, err := token.GenerateRefreshToken(refreshTokenPayload)
+		refreshTokenStr, err := generateRefreshToken(userStorage, accessTokenID, refreshTokenID, clientStorage.ID, refreshExp)
 		if err != nil {
 			logging.L(ctx).Error("failed generate refresh token", err)
-			dR["message"] = "failed create token"
-			resp.Error(w, r, dR)
+			resp.Error(w, r, map[string]string{"message": "failed to create token"})
 			return
 		}
 
-		var dRS = &Response{
-			AccessToken:  accessTokenString,
-			RefreshToken: refreshTokenString,
-			ExpiredAt:    time.Now().Add(cfg.TTL).Unix(),
+		if err := authToken.Create(aToken, rToken); err != nil {
+			logging.L(ctx).Error("failed create token")
+			resp.Error(w, r, map[string]string{"message": "failed to create token"})
+			return
 		}
 
-		resp.Ok(w, r, dRS)
+		resp.Ok(w, r, &Response{
+			AccessToken:  accessTokenStr,
+			RefreshToken: refreshTokenStr,
+			ExpiredAt:    expAt,
+		})
 		return
 	}
+}
+
+func decodeAndValidateRequest(r *http.Request, ctx context.Context) (*Request, error) {
+	var req Request
+
+	err := render.DecodeJSON(r.Body, &req)
+	if errors.Is(err, io.EOF) {
+		logging.L(ctx).Error("request body is empty")
+		return nil, err
+	}
+	if err := validator.New().Struct(req); err != nil {
+		logging.L(ctx).Error("invalid request", err)
+		return nil, err
+	}
+
+	return &req, nil
+}
+
+func generateAccessToken(user user.User, client client.Client, cfg config.Token) (string, int64, error) {
+	payload := &accessTokenDomain.Payload{
+		UUID:     user.UUID,
+		Email:    user.Email,
+		ClientID: client.ID,
+		Scopes:   "[*]",
+	}
+	tokenStr, err := token.GenerateAccessToken(payload, cfg.TTL, client.Secret)
+	if err != nil {
+		return "", 0, err
+	}
+	return tokenStr, time.Now().Add(cfg.TTL).Unix(), nil
+}
+
+func generateRefreshToken(user user.User, accessTokenID, refreshTokenID, clientID string, expiresAt int64) (string, error) {
+	payload := &refreshTokenDomain.Payload{
+		UUID:           user.UUID,
+		Email:          user.Email,
+		TokenAccessId:  accessTokenID,
+		TokenRefreshId: refreshTokenID,
+		ClientId:       clientID,
+		UserId:         user.ID,
+		ExpiresAt:      expiresAt,
+		Scopes:         "[*]",
+	}
+	return token.GenerateRefreshToken(payload)
+}
+
+func logTime(step string, start time.Time, ctx context.Context) {
+	elapsed := time.Since(start)
+	logging.L(ctx).Info("perf", "step", step, "took", elapsed)
 }

@@ -79,7 +79,7 @@ func New(
 		timeUnix := time.Now().Unix()
 
 		var usr = &user.CreateUser{
-			UUID:      identity.NewGenerator().GenerateUUIDv4String(),
+			UUID:      identity.UUIDv7(),
 			Password:  password,
 			Email:     req.Email,
 			Name:      req.Name,

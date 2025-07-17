@@ -25,8 +25,7 @@ func RegisterOAuthRoutes(
 		loginHTTP.New(
 			ctx,
 			storages.User,
-			storages.AccessToken,
-			storages.RefreshToken,
+			storages.AuthToken,
 			storages.Client,
 			cfg.Token,
 		),

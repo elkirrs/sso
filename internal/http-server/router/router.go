@@ -15,8 +15,8 @@ func RegisterRoutes(
 	cfg *config.Config,
 	storages *storage.Storage,
 	pgClient *pgxpool.Pool,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) {
 	RegisterOAuthRoutes(r, ctx, storages, cfg)
-	RegisterHealthRoutes(r, ctx, cfg, pgClient, amqpClient)
+	RegisterHealthRoutes(r, ctx, cfg, pgClient, queueClient)
 }

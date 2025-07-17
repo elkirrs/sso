@@ -51,7 +51,7 @@ func (a *App) Run() error {
 		return err
 	}
 
-	registrationHandler := handlers.NewHandleRegistration(a.dbClient, storages)
+	registrationHandler := handlers.NewHandleRegistration(a.dbClient, a.queueClient, storages)
 
 	go a.queueClient.ConsumeMsg("sso:user-registration", func(msg amqp.Delivery) {
 		rabbitmq.ProcessMessage(a.ctx, msg, registrationHandler)

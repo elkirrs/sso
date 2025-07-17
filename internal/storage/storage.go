@@ -4,6 +4,7 @@ import (
 	clientStorage "app/internal/storage/pgsql/client"
 	accessToken "app/internal/storage/pgsql/oauth/access-token"
 	refreshToken "app/internal/storage/pgsql/oauth/refresh-token"
+	authToken "app/internal/storage/pgsql/oauth/token"
 	"app/internal/storage/pgsql/user"
 	"app/pkg/common/logging"
 	"context"
@@ -30,6 +31,7 @@ type Storage struct {
 	Client       *clientStorage.Storage
 	AccessToken  *accessToken.Storage
 	RefreshToken *refreshToken.Storage
+	AuthToken    *authToken.Storage
 }
 
 func New(ctx context.Context, pgClient *pgxpool.Pool) (*Storage, error) {
@@ -57,10 +59,17 @@ func New(ctx context.Context, pgClient *pgxpool.Pool) (*Storage, error) {
 		return nil, err
 	}
 
+	storageAuthToken, err := authToken.New(ctx, pgClient)
+	if err != nil {
+		logging.L(ctx).Error("failed to init storage auth token", err)
+		return nil, err
+	}
+
 	return &Storage{
 		User:         storageUser,
 		Client:       storageClient,
 		AccessToken:  storageAccessToken,
 		RefreshToken: storageRefreshToken,
+		AuthToken:    storageAuthToken,
 	}, nil
 }

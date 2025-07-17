@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode"
 )
 
 var ErrAttemptsExhausted = errors.New("all attempts exhausted")
@@ -47,5 +48,7 @@ func DoWithAttempt(ctx context.Context, fn func() error, attempts int, delay tim
 }
 
 func FormatQuery(q string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(q, "\t", ""), "\n", " ")
+	q = strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(q)
+	fields := strings.FieldsFunc(q, unicode.IsSpace)
+	return strings.Join(fields, " ")
 }

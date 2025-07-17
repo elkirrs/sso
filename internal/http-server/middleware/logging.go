@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"app/internal/queue"
 	"app/pkg/client/rabbitmq"
 	"app/pkg/common/logging"
 	"bytes"
@@ -28,7 +29,7 @@ type ResponseWriterWrapper struct {
 
 func Logging(
 	ctx context.Context,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +63,11 @@ func Logging(
 				return
 			}
 
-			go amqpClient.PublishMsg(body)
+			go queueClient.PublishMsg(
+				queue.List["logs"].Exchange,
+				queue.List["logs"].RoutingKey,
+				body,
+			)
 		})
 	}
 }
@@ -70,7 +75,7 @@ func Logging(
 func NewResponseWriterWrapper(w http.ResponseWriter) *ResponseWriterWrapper {
 	return &ResponseWriterWrapper{
 		ResponseWriter: w,
-		StatusCode:     http.StatusOK, // по умолчанию статус 200
+		StatusCode:     http.StatusOK,
 	}
 }
 

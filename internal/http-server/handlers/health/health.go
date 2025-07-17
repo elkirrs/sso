@@ -25,7 +25,7 @@ func New(
 	ctx context.Context,
 	cfg *config.Config,
 	pgClient *pgxpool.Pool,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const op = "http-server.handlers.health.New"
@@ -40,7 +40,7 @@ func New(
 		dependencies["database"] = databaseStatus(pgClient)
 
 		if cfg.Queue.Driver != "" {
-			dependencies["rabbitmq"] = rabbitMQStatus(amqpClient.Channel())
+			dependencies["rabbitmq"] = rabbitMQStatus(queueClient.Channel())
 		}
 
 		for _, value := range dependencies {

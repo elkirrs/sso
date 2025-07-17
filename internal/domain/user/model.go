@@ -24,3 +24,9 @@ type CreateUser struct {
 	CreatedAt       int64
 	UpdatedAt       int64
 }
+
+type CreateUserSignal struct {
+	UUID      string `json:"uuid"`
+	Service   string `json:"service"`
+	CreatedAt int64  `json:"createdAt"`
+}

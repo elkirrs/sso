@@ -13,7 +13,7 @@ func RegisterMiddlewares(
 	r chi.Router,
 	ctx context.Context,
 	cfg *config.Config,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -23,7 +23,7 @@ func RegisterMiddlewares(
 	r.Use(MetricsPrometheus)
 
 	if cfg.Queue.Driver != "" {
-		r.Use(Logging(ctx, amqpClient))
+		r.Use(Logging(ctx, queueClient))
 	}
 
 	logging.L(ctx).Info("Middleware initialized successfully")

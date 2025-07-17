@@ -11,6 +11,11 @@ func NewGenerator() *Generator {
 	return &Generator{}
 }
 
-func (g *Generator) GenerateUUIDv4String() string {
+func UUIDv4() string {
 	return uuid.NewString()
+}
+
+func UUIDv7() string {
+	uuidV7, _ := uuid.NewV7()
+	return uuidV7.String()
 }

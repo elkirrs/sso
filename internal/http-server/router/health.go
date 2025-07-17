@@ -14,7 +14,7 @@ func RegisterHealthRoutes(
 	ctx context.Context,
 	cfg *config.Config,
 	pgClient *pgxpool.Pool,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) {
-	r.Get("/health", health.New(ctx, cfg, pgClient, amqpClient))
+	r.Get("/health", health.New(ctx, cfg, pgClient, queueClient))
 }

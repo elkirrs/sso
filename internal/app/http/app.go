@@ -15,25 +15,25 @@ import (
 )
 
 type App struct {
-	ctx        context.Context
-	router     *chi.Mux
-	httpServer *http.Server
-	cfg        *config.Config
-	pgClient   *pgxpool.Pool
-	amqpClient *rabbitmq.App
+	ctx         context.Context
+	router      *chi.Mux
+	httpServer  *http.Server
+	cfg         *config.Config
+	pgClient    *pgxpool.Pool
+	queueClient *rabbitmq.App
 }
 
 func New(
 	ctx context.Context,
 	pgClient *pgxpool.Pool,
 	cfg *config.Config,
-	amqpClient *rabbitmq.App,
+	queueClient *rabbitmq.App,
 ) *App {
 	return &App{
-		ctx:        ctx,
-		cfg:        cfg,
-		pgClient:   pgClient,
-		amqpClient: amqpClient,
+		ctx:         ctx,
+		cfg:         cfg,
+		pgClient:    pgClient,
+		queueClient: queueClient,
 	}
 }
 
@@ -52,7 +52,7 @@ func (a *App) Run() error {
 		logging.IntAttr("port", a.cfg.HTTP.Port),
 	)
 
-	r, err := server.New(a.ctx, a.pgClient, a.cfg, a.amqpClient)
+	r, err := server.New(a.ctx, a.pgClient, a.cfg, a.queueClient)
 
 	if err != nil {
 		logging.L(a.ctx).Error("failed to create routers", err)

@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"app/internal/config"
+	"app/internal/queue"
 	"app/pkg/common/logging"
 	"app/pkg/utils/loop"
 	"context"
@@ -36,10 +37,12 @@ func New(
 			return nil, err
 		}
 
-		err = app.SetupQueueAndExchange("logs")
-		if err != nil {
-			logging.L(ctx).Error("Error during setup RabbitMQ: ", err)
-			return nil, err
+		for _, queueData := range queue.List {
+			err = app.SetupQueueAndExchange(queueData.Exchange, queueData.Queue, queueData.RoutingKey)
+			if err != nil {
+				logging.L(ctx).Error("Error during setup RabbitMQ: ", err)
+				return nil, err
+			}
 		}
 	}
 
@@ -78,11 +81,11 @@ func (a *App) Connect() error {
 	return nil
 }
 
-func (a *App) SetupQueueAndExchange(NameQueue string) error {
+func (a *App) SetupQueueAndExchange(exchangeName, queueName, routingKey string) error {
 
 	err := a.ch.ExchangeDeclare(
-		"sso",
-		"fanout",
+		exchangeName,
+		"direct",
 		true,
 		false,
 		false,
@@ -94,7 +97,7 @@ func (a *App) SetupQueueAndExchange(NameQueue string) error {
 	}
 
 	_, err = a.ch.QueueDeclare(
-		NameQueue,
+		queueName,
 		true,
 		false,
 		false,
@@ -106,9 +109,9 @@ func (a *App) SetupQueueAndExchange(NameQueue string) error {
 	}
 
 	err = a.ch.QueueBind(
-		NameQueue,
-		"",
-		"amq.direct",
+		queueName,
+		routingKey,
+		exchangeName,
 		false,
 		nil,
 	)
@@ -124,10 +127,10 @@ func (a *App) Channel() *amqp.Channel {
 	return a.ch
 }
 
-func (a *App) PublishMsg(msg []byte) {
+func (a *App) PublishMsg(exchangeName, routingKey string, msg []byte) {
 	err := a.ch.Publish(
-		"amq.direct",
-		"",
+		exchangeName,
+		routingKey,
 		false,
 		false,
 		amqp.Publishing{
